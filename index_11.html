@@ -1,0 +1,1387 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="打つたびに陣地が色でわかる囲碁盤。陣地取り・石取り・変則碁盤・置き石・特殊ルール、兵士やお城の駒で遊べます。 A Go board that shades territory after every move, with Capture Go, irregular boards, handicaps and special rules.">
+<meta property="og:title" content="陣地が見える碁盤 | Territory Go Board">
+<meta property="og:description" content="打つたびに陣地が色でわかる囲碁盤。See who owns the board, move by move.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://igo-risyo.github.io/territory-go/og.jpg">
+<meta property="og:url" content="https://igo-risyo.github.io/territory-go/">
+<meta name="twitter:image" content="https://igo-risyo.github.io/territory-go/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://igo-risyo.github.io/territory-go/">
+<title>陣地が見える碁盤</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: 碁盤を主役に左、右に「形勢・表示・特殊ルール・対局」の操作盤。狭い画面では縦積み */
+:root{
+  --bg:#e7ebef; --surface:#f7f8fa; --ink:#1a1e24; --muted:#5a6470; --line:#cfd6de;
+  --accent:#1f4f7d; --accent-ink:#ffffff; --gold:#b9861f; --warn:#a23a2a;
+  --wood-a:#e2bd73; --wood-b:#cf9f52; --grid:#3a2810;
+  --f-display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#13171c; --surface:#1b2027; --ink:#e5e9ee; --muted:#98a2ae; --line:#2b323b;
+  --accent:#8ab8e6; --accent-ink:#0f1720; --gold:#e0b04a; --warn:#e48a78;
+  --wood-a:#c99f58; --wood-b:#b0823e; --grid:#2a1c08; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#13171c; --surface:#1b2027; --ink:#e5e9ee; --muted:#98a2ae; --line:#2b323b;
+  --accent:#8ab8e6; --accent-ink:#0f1720; --gold:#e0b04a; --warn:#e48a78;
+  --wood-a:#c99f58; --wood-b:#b0823e; --grid:#2a1c08; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1060px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(26px,4vw,36px);margin:0;letter-spacing:.04em;text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:60ch;flex:1 1 320px}
+.seg.lang{grid-template-columns:repeat(2,auto);margin-left:auto;align-self:center}
+.seg.lang button{padding:5px 12px}
+.app{display:grid;grid-template-columns:minmax(0,620px) minmax(0,380px);gap:24px;justify-content:center;align-items:start}
+@media (max-width:920px){.app{grid-template-columns:minmax(0,1fr)}}
+.board-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.board{position:relative;width:100%;aspect-ratio:1;max-width:100%;border-radius:6px;overflow:hidden;
+  box-shadow:0 1px 0 rgba(0,0,0,.08),0 12px 30px -12px rgba(30,20,5,.45)}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation;cursor:pointer}
+.toast{min-height:1.6em;font-size:14px;color:var(--muted)}
+.toast.warn{color:var(--warn);font-weight:500}
+.toast.good{color:var(--accent);font-weight:500}
+.basics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:560px){.basics{grid-template-columns:minmax(0,1fr)}}
+.basics div{border-top:2px solid var(--ink);padding-top:8px;min-width:0}
+.basics b{display:block;font-family:var(--f-display);font-size:16px}
+.basics span{font-size:13px;color:var(--muted)}
+
+.panel{display:flex;flex-direction:column;gap:14px;min-width:0}
+.sec{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.sec h2{margin:0;font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--muted)}
+.turn{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
+.dot{width:18px;height:18px;border-radius:50%;flex:none}
+.dot.b{background:radial-gradient(circle at 35% 30%,#555,#0b0b0b 70%)}
+.dot.w{background:radial-gradient(circle at 35% 30%,#fff,#d8d8d2 75%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.caps{margin-left:auto;font-size:13px;font-weight:500;color:var(--muted)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.bar{position:relative;height:26px;border-radius:5px;overflow:hidden;display:flex;border:1px solid var(--line)}
+.bar .bk{background:#15171b;transition:width .35s}
+.bar .wh{background:#f4f2ec;flex:1}
+.bar .mid{position:absolute;left:50%;top:-2px;bottom:-2px;width:2px;background:var(--accent)}
+.bar-legend{display:flex;justify-content:space-between;font-size:13px}
+.bar-legend .lead{font-weight:700}
+.sub{font-size:12.5px;color:var(--muted)}
+
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink);font:inherit;font-size:13.5px;padding:7px 4px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:700}
+
+.rule{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--line)}
+.rule:first-of-type{border-top:0;padding-top:0}
+.rule-head{display:flex;align-items:center;gap:10px}
+.rule-head strong{font-size:15px}
+.rule p{margin:0;font-size:13px;color:var(--muted)}
+.rule-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.switch{position:relative;width:42px;height:24px;flex:none;margin-left:auto}
+.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.switch span{position:absolute;inset:0;border-radius:12px;background:var(--line);transition:background .2s}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .2s}
+.switch input:checked+span{background:var(--gold)}
+.switch input:checked+span::after{transform:translateX(18px)}
+.switch input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.stepper{display:flex;align-items:center;gap:6px;font-size:13px}
+.stepper input{width:58px;font:inherit;font-family:var(--f-num);padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink)}
+
+.btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.btn{font:inherit;font-size:14px;padding:8px 10px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn.small{font-size:12.5px;padding:4px 10px}
+.btn:focus-visible,.seg button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13.5px}
+select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+
+.result{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;font-size:13.5px;align-items:center}
+.result .tot{font-family:var(--f-num);font-weight:600;font-size:16px;text-align:right}
+.verdict{font-family:var(--f-display);font-size:22px;font-weight:800}
+.goal{display:flex;flex-direction:column;gap:6px}
+.goal-row{display:flex;align-items:center;gap:8px;font-size:14px}
+.pips{display:flex;gap:4px}
+.pip{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--muted)}
+.pip.on{background:var(--warn);border-color:var(--warn)}
+.win{font-family:var(--f-display);font-size:24px;font-weight:800;color:var(--warn)}
+.log{list-style:none;margin:0;padding:0;font-size:13px;display:flex;flex-direction:column;gap:3px;max-height:150px;overflow:auto}
+.log li{color:var(--muted)}
+.log li:first-child{color:var(--ink)}
+.log .num{display:inline-block;min-width:2.6em}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1 data-i="title">陣地が見える碁盤</h1>
+    <p data-i="lead">石で囲んだ交点が自分の陣地。最後に陣地が広い方が勝ち。打つたびに、どちらの陣地になりそうかを色で表示します。</p>
+    <div class="seg lang" role="group" aria-label="Language / 言語">
+      <button type="button" data-lang="ja" aria-pressed="true" lang="ja">日本語</button>
+      <button type="button" data-lang="en" aria-pressed="false" lang="en">English</button>
+    </div>
+  </header>
+
+  <div class="app">
+    <div class="board-col">
+      <div class="board"><canvas id="cv" data-ia="cvLabel" aria-label="碁盤"></canvas></div>
+      <div class="toast" id="toast" role="status"></div>
+      <div class="basics">
+        <div><b data-i="b1t">交互に打つ</b><span data-i="b1d">黒から先に、線の交点へ1つずつ石を置きます。</span></div>
+        <div><b data-i="b2t">囲めば取れる</b><span data-i="b2d">相手の石の呼吸点（隣の空き）を全部ふさぐと取れます。</span></div>
+        <div><b data-i="b3t">囲った所が陣地</b><span data-i="b3d">自分の石だけで囲んだ空きが「地」。取った石も1目ずつ加算。</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <section class="sec" aria-labelledby="h-type">
+        <h2 id="h-type" data-i="hType">ゲーム</h2>
+        <div class="seg" role="group" data-ia="typeAria" aria-label="ゲームの種類" style="grid-template-columns:repeat(2,1fr)">
+          <button type="button" data-type="territory" aria-pressed="true" data-i="tTerr">陣地取り</button>
+          <button type="button" data-type="capture" aria-pressed="false" data-i="tCap">石取り</button>
+        </div>
+        <div class="row" id="cap-opts" hidden>
+          <label for="sel-target" data-i="firstTo">先に</label>
+          <select id="sel-target"><option value="1" data-i="optStones" data-n="1">1子</option><option value="2" data-i="optStones" data-n="2">2子</option><option value="3" selected data-i="optStones" data-n="3">3子</option><option value="4" data-i="optStones" data-n="4">4子</option><option value="5" data-i="optStones" data-n="5">5子</option></select>
+          <span data-i="winsIf">取った方が勝ち</span>
+        </div>
+        <div class="goal" id="goal" hidden>
+          <div class="goal-row"><span class="dot b"></span><span style="min-width:3.2em" data-i="black">黒</span><span class="pips" id="pips-b"></span></div>
+          <div class="goal-row"><span class="dot w"></span><span style="min-width:3.2em" data-i="white">白</span><span class="pips" id="pips-w"></span></div>
+          <div class="win" id="win" hidden></div>
+        </div>
+        <div class="sub" id="type-note"></div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-state">
+        <h2 id="h-state" data-i="hState">形勢</h2>
+        <div class="turn"><span class="dot b" id="turn-dot"></span><span id="turn-text"></span>
+          <span class="caps"><span data-i="capsL">アゲハマ</span> <span data-i="blackS">黒</span><span class="num" id="cap-b">0</span>・<span data-i="whiteS">白</span><span class="num" id="cap-w">0</span></span></div>
+        <div class="bar" aria-hidden="true"><div class="bk" id="bar-b" style="width:50%"></div><div class="wh"></div><div class="mid"></div></div>
+        <div class="bar-legend"><span id="est-b"></span><span id="est-w"></span></div>
+        <div class="sub"><span data-i="estNote">日本ルールの予想 = 勢力の強い空き（地）＋ アゲハマ（白はコミ込み）。囲み終えた陣地：</span><span data-i="blackS">黒</span> <span class="num" id="terr-b">0</span>・<span data-i="whiteS">白</span> <span class="num" id="terr-w">0</span></div>
+      </section>
+
+      <section class="sec" id="setup-sec" hidden aria-labelledby="h-setup">
+        <h2 id="h-setup" data-i="hSetup">置き石を置く</h2>
+        <div class="turn"><span class="dot b"></span><span><span class="num" id="hc-count">0</span> / <span class="num" id="hc-total">0</span> <span data-i="stoneUnit">子</span></span></div>
+        <div class="sub" data-i="setupNote">黒の置き石を好きな交点に置いてください。置いた石をもう一度クリックすると外せます。置き終わったら白から打ち始めます。</div>
+        <div class="btns">
+          <button class="btn" id="b-hc-star" type="button" data-i="hcStar">星に置く</button>
+          <button class="btn" id="b-hc-clear" type="button" data-i="hcClear">全部外す</button>
+          <button class="btn primary" id="b-hc-start" type="button" style="grid-column:1/-1" data-i="hcStart">置き終えて対局開始</button>
+        </div>
+      </section>
+
+      <section class="sec" id="score-sec" hidden aria-labelledby="h-score">
+        <h2 id="h-score" data-i="hScore">整地・計算（日本ルール）</h2>
+        <div class="sub" data-i="scoreNote">死んでいる石をクリックすると「死に石」になり、相手のアゲハマになります。もう一度クリックで戻せます。</div>
+        <div class="result" id="result"></div>
+        <div class="verdict" id="verdict"></div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-view">
+        <h2 id="h-view" data-i="hView">陣地の見せ方</h2>
+        <div class="seg" role="group" data-ia="hView" aria-label="表示">
+          <button type="button" data-view="influence" aria-pressed="true" data-i="vInf">勢力</button>
+          <button type="button" data-view="territory" aria-pressed="false" data-i="vTerr">囲んだ陣地</button>
+          <button type="button" data-view="none" aria-pressed="false" data-i="vNone">なし</button>
+        </div>
+        <div class="sub" id="view-note"></div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-piece">
+        <h2 id="h-piece" data-i="hPiece">駒の見た目</h2>
+        <div class="seg" role="group" data-ia="hPiece" aria-label="駒の見た目">
+          <button type="button" data-piece="stone" aria-pressed="false" data-i="pStone">碁石</button>
+          <button type="button" data-piece="soldier" aria-pressed="true" data-i="pSoldier">兵士</button>
+          <button type="button" data-piece="castle" aria-pressed="false" data-i="pCastle">お城</button>
+        </div>
+        <div class="sub" id="piece-note"></div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-rules">
+        <h2 id="h-rules" data-i="hRules">特殊ルール</h2>
+        <div id="rules"></div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-game">
+        <h2 id="h-game" data-i="hGame">対局</h2>
+        <div class="btns">
+          <button class="btn" id="b-pass" type="button" data-i="pass">パス</button>
+          <button class="btn" id="b-undo" type="button" data-i="undo">待った</button>
+          <button class="btn primary" id="b-score" type="button">終局して数える</button>
+          <button class="btn" id="b-new" type="button" data-i="newGame">新しい対局</button>
+        </div>
+        <div class="row">
+          <label for="sel-size" data-i="boardL">盤</label>
+          <select id="sel-size"><option value="7" data-i="optSize" data-n="7">7路</option><option value="9" selected data-i="optSize" data-n="9">9路</option><option value="13" data-i="optSize" data-n="13">13路</option><option value="19" data-i="optSize" data-n="19">19路</option><optgroup data-il="irrGroup" label="変則碁盤（ランダムな形）"><option value="rs" data-i="irrS">変則・小（7〜9路くらい）</option><option value="rm" data-i="irrM">変則・中（13路くらい）</option><option value="rl" data-i="irrL">変則・大（19路くらい）</option></optgroup></select>
+          <button class="btn small" id="b-reroll" type="button" hidden data-i="reroll">別の形にする</button>
+          <label for="sel-komi" data-i="komiL">コミ</label>
+          <select id="sel-komi"><option value="0" data-i="none">なし</option><option value="0.5" data-i="optKomi" data-n="0.5">0.5目</option><option value="5.5" data-i="optKomi" data-n="5.5">5.5目</option><option value="6.5" selected data-i="optKomi" data-n="6.5">6.5目</option></select>
+          <label for="sel-hcap" data-i="hcapL">置き石</label>
+          <select id="sel-hcap"><option value="0" data-i="hcapNone">なし（互先）</option><option value="2" data-i="optHcap" data-n="2">二子局</option><option value="3" data-i="optHcap" data-n="3">三子局</option><option value="4" data-i="optHcap" data-n="4">四子局</option><option value="5" data-i="optHcap" data-n="5">五子局</option><option value="6" data-i="optHcap" data-n="6">六子局</option><option value="7" data-i="optHcap" data-n="7">七子局</option><option value="8" data-i="optHcap" data-n="8">八子局</option><option value="9" data-i="optHcap" data-n="9">九子局</option></select>
+        </div>
+        <ul class="log" id="log"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
+    set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  };
+
+
+  /* ---------- 言語 / Language ---------- */
+  const KAN = "〇〇二三四五六七八九";
+  const pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const I18N = {
+    ja: {
+      title: "陣地が見える碁盤",
+      lead: "石で囲んだ交点が自分の陣地。最後に陣地が広い方が勝ち。打つたびに、どちらの陣地になりそうかを色で表示します。",
+      cvLabel: "碁盤",
+      b1t: "交互に打つ", b1d: "黒から先に、線の交点へ1つずつ石を置きます。",
+      b2t: "囲めば取れる", b2d: "相手の石の呼吸点（隣の空き）を全部ふさぐと取れます。",
+      b3t: "囲った所が陣地", b3d: "自分の石だけで囲んだ空きが「地」。取った石も1目ずつ加算。",
+      hType: "ゲーム", typeAria: "ゲームの種類", tTerr: "陣地取り", tCap: "石取り",
+      firstTo: "先に", winsIf: "取った方が勝ち", optStones: n => `${n}子`,
+      black: "黒", white: "白", blackS: "黒", whiteS: "白",
+      hState: "形勢", capsL: "アゲハマ",
+      estNote: "日本ルールの予想 = 勢力の強い空き（地）＋ アゲハマ（白はコミ込み）。囲み終えた陣地：",
+      hSetup: "置き石を置く", stoneUnit: "子",
+      setupNote: "黒の置き石を好きな交点に置いてください。置いた石をもう一度クリックすると外せます。置き終わったら白から打ち始めます。",
+      hcStar: "星に置く", hcClear: "全部外す", hcStart: "置き終えて対局開始",
+      hScore: "整地・計算（日本ルール）",
+      scoreNote: "死んでいる石をクリックすると「死に石」になり、相手のアゲハマになります。もう一度クリックで戻せます。",
+      hView: "陣地の見せ方", vInf: "勢力", vTerr: "囲んだ陣地", vNone: "なし",
+      hPiece: "駒の見た目", pStone: "碁石", pSoldier: "兵士", pCastle: "お城",
+      hRules: "特殊ルール", hGame: "対局",
+      pass: "パス", undo: "待った", newGame: "新しい対局", endCount: "終局して数える", backToGame: "対局に戻る",
+      boardL: "盤", optSize: n => `${n}路`, irrGroup: "変則碁盤（ランダムな形）",
+      irrS: "変則・小（7〜9路くらい）", irrM: "変則・中（13路くらい）", irrL: "変則・大（19路くらい）", reroll: "別の形にする",
+      komiL: "コミ", none: "なし", optKomi: n => `${n}目`,
+      hcapL: "置き石", hcapNone: "なし（互先）", optHcap: n => `${KAN[n]}子局`,
+      demo: "例題で試す", paramN: "必要な石の数", logEmpty: "まだ着手はありません",
+      ruleChainName: n => `${n}子つながれば眼なしで生き`,
+      ruleChainDesc: n => `縦横に${n}個以上つながった石は、呼吸点がなくなっても取り上げられず、整地でも死に石にできません。金色の輪が目印。`,
+      ruleBentName: "隅の曲がり四目は両方生き",
+      ruleBentDesc: "終局時、眼が隅のL字型4目（隅が曲がり角）だけの石と、その中にある相手の石を、両方とも生きとして扱います。セキと同じく、その4目はどちらの地にもなりません。死に石の指定もできません。※盤上の形からの簡易判定。",
+      ranks: { soldier: ["兵士","騎士","将軍"], castle: ["砦","お城","天守閣"] },
+      outside: "そこは盤の外です。",
+      levelUpR: (n, c, p, a, b) => t("levelUp", n, c, t("ranks")[p][a-1], t("ranks")[p][b-1]),
+      promotedR: (p, b) => t("promoted", t("ranks")[p][b-1]), occupied: "そこには石があります。",
+      suicide: "自殺手：自分の石の呼吸点がなくなるので打てません。",
+      ko: "コウ：取られた直後は、すぐに取り返せません。一度ほかに打ちましょう。",
+      move: (c, pt) => `${col(c)} ${pt}`, took: n => `${n}子取り`,
+      winLog: (c, K) => `${col(c)}の勝ち（先に${K}子取った）`,
+      winSay: (c, K) => `${col(c)}の勝ち！ 先に${K}子取りました。「待った」で戻すこともできます。`,
+      levelUp: (n, c, a, b) => `${n}子つながって、${col(c)}の${a}が${b}にグレードアップ！`,
+      promoted: b => `${b}に昇格`,
+      survived: (n, c) => `呼吸点はゼロですが、${n}子つながった${col(c)}石は特殊ルールで生きています。`,
+      tookSay: (c, n) => `${col(c)}が${n}子を取りました。`,
+      atari: (c, n, pt) => `アタリ！ ${col(c)}の${n}子は、呼吸点が残り1つ（${pt}）です。`,
+      atariLog: "アタリ", selfAtari: (n, pt) => `注意：自分の${n}子がアタリです（残り${pt}）。`,
+      hcBegin: h => `${KAN[h]}子局です。黒の置き石を${h}子、好きな所に置いてください（「星に置く」で定位置にも置けます）。`,
+      newIrr: n => `変則碁盤（${n}交点）で新しい対局です。黒から打ちます。`,
+      newEven: n => `${n}路盤・互先で新しい対局です。黒から打ちます。`,
+      hcMax: h => `置き石は${h}子までです。外してから置き直してください。`,
+      hcRemain: k => `あと${k}子置いてください。`,
+      hcLog: (h, pts) => `置き石 ${h}子（${pts.join("・")}）`,
+      hcGo: h => `${h}子局の対局開始。白から打ちます。`,
+      noUndo: "これ以上は戻せません。", undone: "一手戻しました。",
+      passLog: c => `${col(c)} パス`, passed: c => `${col(c)}がパスしました。`,
+      capFallback: K => `どちらも${K}子取れなかったので、陣地勝負で決めます。死に石があればクリックで指定してください。`,
+      bothPass: "両者パスで終局。整地して数えます。", deadHint: "死に石があればクリックして指定してください。",
+      bentLog: pt => `隅の曲がり四目（${pt}付近）：両方生き・地なし`,
+      backPlay: "対局に戻りました。",
+      immortalNoDead: n => `${n}子つながった石は取り上げられません（特殊ルール）。`,
+      bentNoDead: "隅の曲がり四目の石は両方生きです（特殊ルール）。",
+      ruleToggled: (name, on) => `「${name}」を${on ? "ON" : "OFF"}にしました。`,
+      winBanner: c => `${col(c)}の勝ち！`,
+      typeNoteCap: (K, on, n) => `先に${K}子取った方が勝ち。どちらも取れずに終局したら陣地勝負。${on ? `「${n}子つながれば取られない」ルールON中。` : ""}`,
+      typeNoteTerr: "囲んだ陣地の広さで勝負します。",
+      turnOf: c => `${col(c)}の番`, scoringT: "整地中", setupT: "置き石を置く", overT: "勝負あり",
+      terrL: "地", komiAdd: "コミ", jigo: "持碁（引き分け）", verdict: (c, d) => `${col(c)}の${d}目勝ち`,
+      pieceStone: "普通の碁石で表示します。",
+      pieceGrades: (r, N) => `つながった石の数でグレードが上がります：1〜${N-1}子は${r[0]}、${N}子以上で${r[1]}、${N*2}子以上で${r[2]}。`,
+      viewScore: "整地中は、死に石を除いて囲んだ陣地を表示します。",
+      viewInf: "石の近くほど濃く塗ります。どちらの陣地になりそうかの目安です。",
+      viewTerr: "片方の色の石だけに囲まれた空き（□の印）が、今の時点で確定している陣地です。",
+      viewNone: "陣地の色を消して、普通の碁盤で打ちます。",
+      demoChainLog: "例題：7子連結",
+      demoChainSay: "白番。点線の J5 に打つと黒の呼吸点はゼロ。ルールONなら黒は生き残り、OFFなら7子取れます。",
+      demoBentLog: "例題：隅の曲がり四目",
+      demoBentSay: "左上の黒は眼がL字型4目だけ。ルールONなら黒も中の石も両方生きで、点線の4目はどちらの地にもなりません。OFFなら4目は黒地です。",
+      sampleSay: "途中局面のサンプルです。好きな交点をクリックして続きを打てます。",
+      overClick: "勝負がつきました。「新しい対局」で次の対局を始められます。",
+      starPlaced: "星の定位置に置きました。動かしたい石はクリックで外して置き直せます。"
+    },
+    en: {
+      title: "Territory Go Board",
+      lead: "Points you surround with your stones are your territory, and the larger territory wins. After every move, the board shades who is likely to own each area.",
+      cvLabel: "Go board",
+      b1t: "Take turns", b1d: "Black plays first. Place one stone at a time on an intersection.",
+      b2t: "Surround to capture", b2d: "Fill every liberty (adjacent empty point) of a group to capture it.",
+      b3t: "Enclose territory", b3d: "Empty points enclosed only by your stones are your territory. Each captured stone adds 1 point.",
+      hType: "Game", typeAria: "Game type", tTerr: "Territory", tCap: "Capture Go",
+      firstTo: "First to capture", winsIf: "wins", optStones: n => pl(n, "stone"),
+      black: "Black", white: "White", blackS: "B ", whiteS: "W ",
+      hState: "Standing", capsL: "Captures",
+      estNote: "Estimate (Japanese rules) = strongly influenced empty points + captures (White includes komi). Enclosed territory: ",
+      hSetup: "Place handicap stones", stoneUnit: "stones",
+      setupNote: "Place Black's handicap stones on any points you like. Click a stone again to remove it. White moves first once they're placed.",
+      hcStar: "Use star points", hcClear: "Clear all", hcStart: "Start the game",
+      hScore: "Counting (Japanese rules)",
+      scoreNote: "Click dead stones to mark them; they count as the opponent's captures. Click again to unmark.",
+      hView: "Territory view", vInf: "Influence", vTerr: "Enclosed", vNone: "Off",
+      hPiece: "Pieces", pStone: "Stones", pSoldier: "Soldiers", pCastle: "Castles",
+      hRules: "Special rules", hGame: "Game controls",
+      pass: "Pass", undo: "Undo", newGame: "New game", endCount: "End & count", backToGame: "Back to game",
+      boardL: "Board", optSize: n => `${n}×${n}`, irrGroup: "Irregular (random shape)",
+      irrS: "Irregular S (≈ 7–9)", irrM: "Irregular M (≈ 13)", irrL: "Irregular L (≈ 19)", reroll: "New shape",
+      komiL: "Komi", none: "None", optKomi: n => `${n}`,
+      hcapL: "Handicap", hcapNone: "None (even)", optHcap: n => pl(n, "stone"),
+      demo: "Try an example", paramN: "Stones needed", logEmpty: "No moves yet",
+      ruleChainName: n => `${n} connected stones live without eyes`,
+      ruleChainDesc: n => `A group of ${n} or more stones connected vertically or horizontally can't be captured even with no liberties, and can't be marked dead when counting. Marked with a gold ring.`,
+      ruleBentName: "Bent four in the corner: both live",
+      ruleBentDesc: "At the end, a group whose only eye space is an L-shaped 4 points in the corner (bend at the corner), and any opponent stones inside it, are both treated as alive. Like seki, those 4 points count for no one, and the stones can't be marked dead. (Simplified shape check.)",
+      ranks: { soldier: ["Soldier","Knight","General"], castle: ["Fort","Castle","Keep"] },
+      outside: "That point is off the board.",
+      levelUpR: (n, c, p, a, b) => t("levelUp", n, c, t("ranks")[p][a-1], t("ranks")[p][b-1]),
+      promotedR: (p, b) => t("promoted", t("ranks")[p][b-1]), occupied: "There's already a stone there.",
+      suicide: "Suicide: this move would leave your own stones with no liberties.",
+      ko: "Ko: you can't retake immediately. Play somewhere else first.",
+      move: (c, pt) => `${col(c)} ${pt}`, took: n => `captured ${n}`,
+      winLog: (c, K) => `${col(c)} wins (first to capture ${K})`,
+      winSay: (c, K) => `${col(c)} wins! First to capture ${pl(K, "stone")}. Use Undo to take it back.`,
+      levelUp: (n, c, a, b) => `${n} stones connected: ${col(c)}'s ${a} became a ${b}!`,
+      promoted: b => `promoted to ${b}`,
+      survived: (n, c) => `No liberties left, but ${col(c)}'s ${n} connected stones live by the special rule.`,
+      tookSay: (c, n) => `${col(c)} captured ${pl(n, "stone")}.`,
+      atari: (c, n, pt) => `Atari! ${col(c)}'s ${pl(n, "stone")} ${n === 1 ? "has" : "have"} one liberty left (${pt}).`,
+      atariLog: "atari", selfAtari: (n, pt) => `Careful: your own ${pl(n, "stone")} ${n === 1 ? "is" : "are"} in atari (${pt}).`,
+      hcBegin: h => `${h}-stone handicap. Place ${h} black stones anywhere you like (or use "Use star points").`,
+      newIrr: n => `New game on an irregular board (${n} points). Black plays first.`,
+      newEven: n => `New even game on ${n}×${n}. Black plays first.`,
+      hcMax: h => `Only ${h} handicap stones. Remove one before placing another.`,
+      hcRemain: k => `Place ${pl(k, "more stone")}.`,
+      hcLog: (h, pts) => `Handicap ${h} (${pts.join(", ")})`,
+      hcGo: h => `${h}-stone handicap game started. White plays first.`,
+      noUndo: "Nothing left to undo.", undone: "Took back one move.",
+      passLog: c => `${col(c)} passes`, passed: c => `${col(c)} passed.`,
+      capFallback: K => `No one captured ${K}, so territory decides. Click dead stones to mark them.`,
+      bothPass: "Both players passed. Time to count.", deadHint: "Click any dead stones to mark them.",
+      bentLog: pt => `Bent four in the corner (near ${pt}): both live, no territory`,
+      backPlay: "Back to the game.",
+      immortalNoDead: n => `${n} connected stones can't be removed (special rule).`,
+      bentNoDead: "Stones in a bent four in the corner both live (special rule).",
+      ruleToggled: (name, on) => `"${name}" is now ${on ? "ON" : "OFF"}.`,
+      winBanner: c => `${col(c)} wins!`,
+      typeNoteCap: (K, on, n) => `First to capture ${pl(K, "stone")} wins. If no one does before the game ends, territory decides.${on ? ` "${n} connected stones can't be captured" is ON.` : ""}`,
+      typeNoteTerr: "The larger territory wins.",
+      turnOf: c => `${col(c)} to play`, scoringT: "Counting", setupT: "Placing handicap", overT: "Game over",
+      terrL: "Territory", komiAdd: "Komi", jigo: "Jigo (draw)", verdict: (c, d) => `${col(c)} wins by ${d}`,
+      pieceStone: "Shown as ordinary Go stones.",
+      pieceGrades: (r, N) => `Connected groups level up: 1–${N-1} stones are ${r[0]}s, ${N}+ become ${r[1]}s, ${N*2}+ become ${r[2]}s.`,
+      viewScore: "While counting, enclosed territory is shown with dead stones removed.",
+      viewInf: "Shading is darker near stones: a guide to who is likely to own each area.",
+      viewTerr: "Empty points surrounded by only one color (marked □) are territory that's settled right now.",
+      viewNone: "No territory shading, just a plain board.",
+      demoChainLog: "Example: 7 connected",
+      demoChainSay: "White to play. Playing at the dotted J5 takes Black's last liberty. With the rule ON, Black survives; OFF, White captures 7.",
+      demoBentLog: "Example: bent four in the corner",
+      demoBentSay: "Black's only eye space in the top left is an L-shaped 4 points. With the rule ON, Black and the stones inside both live and the 4 dotted points count for no one. OFF, they are Black's territory.",
+      sampleSay: "A sample game in progress. Click any point to keep playing.",
+      overClick: "The game is over. Press \"New game\" to play again.",
+      starPlaced: "Placed on the star points. Click a stone to remove it and place it elsewhere."
+    }
+  };
+  let lang = store.get("go-lang") || ((navigator.language || "ja").toLowerCase().startsWith("ja") ? "ja" : "en");
+  const t = (k, ...a) => { const v = I18N[lang][k] ?? I18N.ja[k]; return typeof v === "function" ? v(...a) : v; };
+  function col(c){ return c === 1 ? t("black") : t("white"); }
+  let lastToast = null;
+
+  /* ---------- 特殊ルール（ここに足せば増やせる） ---------- */
+  const RULES = [
+    {
+      id: "chain", on: true, n: 7,
+      name: r => t("ruleChainName", r.n),
+      desc: r => t("ruleChainDesc", r.n),
+      param: { key: "n", label: () => t("paramN"), min: 3, max: 30 },
+      demo: "chain",
+      // 打った時：この石群は取られない？
+      immortal: (r, g) => g.stones.length >= r.n
+    },
+    {
+      id: "bent", on: true,
+      name: () => t("ruleBentName"),
+      desc: () => t("ruleBentDesc"),
+      demo: "bent",
+      // 整地時：両方生き（セキ扱い）にする形
+      scoringSeki: (r, b, size) => bentFourGroups(b, size)
+    }
+  ];
+  const saved = store.get("go-rules");
+  if (saved) RULES.forEach(r => { const s = saved[r.id]; if (s) { r.on = !!s.on; if (r.param && s[r.param.key]) r[r.param.key] = s[r.param.key]; } });
+  const saveRules = () => store.set("go-rules", Object.fromEntries(RULES.map(r => [r.id, r.param ? { on: r.on, [r.param.key]: r[r.param.key] } : { on: r.on }])));
+  const isImmortal = g => RULES.some(r => r.on && r.immortal && r.immortal(r, g));
+
+  /* ---------- 状態 ---------- */
+  let S;
+  // 盤外（変則碁盤で打てない所）は 3 で埋める
+  const STONE = v => v === 1 || v === 2;
+  function newState(size, mask){
+    const st = newStateBase(size);
+    if (mask){ st.mask = mask; mask.forEach((m, i) => { if (!m) st.board[i] = 3; }); }
+    return st;
+  }
+  function newStateBase(size){
+    return { size, board: new Int8Array(size*size), turn: 1, caps: [0,0,0], last: -1, passes: 0,
+             history: [], mode: "play", dead: new Set(), seki: new Set(), safe: new Set(), hint: -1, log: [] };
+  }
+  let view = store.get("go-view") || "influence";
+  let pieces = store.get("go-pieces") || "soldier";
+  let gameType = store.get("go-type") || "territory";
+  const target = () => parseInt($("sel-target").value);
+  { const t = store.get("go-target"); if (t) $("sel-target").value = String(t); }
+  const komi = () => parseFloat($("sel-komi").value);
+  const coord = i => LETTERS[i % S.size] + (S.size - Math.floor(i / S.size));
+  const colorName = col;
+
+  function nbrs(i, size){
+    const x = i % size, y = (i - x) / size, out = [];
+    if (x > 0) out.push(i-1); if (x < size-1) out.push(i+1);
+    if (y > 0) out.push(i-size); if (y < size-1) out.push(i+size);
+    return out;
+  }
+  function groupAt(b, i, size){
+    const color = b[i], stones = [], libs = new Set(), seen = new Set([i]), st = [i];
+    while (st.length){
+      const p = st.pop(); stones.push(p);
+      for (const n of nbrs(p, size)){
+        if (b[n] === 0) libs.add(n);
+        else if (b[n] === color && !seen.has(n)){ seen.add(n); st.push(n); }
+      }
+    }
+    return { color, stones, libs };
+  }
+  function allGroups(b, size){
+    const seen = new Uint8Array(b.length), gs = [];
+    for (let i = 0; i < b.length; i++) if (STONE(b[i]) && !seen[i]){
+      const g = groupAt(b, i, size); g.stones.forEach(s => seen[s] = 1); gs.push(g);
+    }
+    return gs;
+  }
+
+  /* ---------- 着手 ---------- */
+  function play(i){
+    if (S.board[i] === 3) return say("outside", "warn");
+    if (S.board[i]) return say("occupied", "warn");
+    const nb = S.board.slice(), me = S.turn, opp = 3 - me;
+    nb[i] = me;
+    let taken = 0, survived = 0;
+    for (const n of nbrs(i, S.size)){
+      if (nb[n] !== opp) continue;
+      const g = groupAt(nb, n, S.size);
+      if (g.libs.size) continue;
+      if (isImmortal(g)){ survived = g.stones.length; continue; }
+      g.stones.forEach(s => nb[s] = 0); taken += g.stones.length;
+    }
+    const own = groupAt(nb, i, S.size);
+    if (own.libs.size === 0 && !isImmortal(own)) return say("suicide", "warn");
+    let prevLv = 1;
+    for (const n of nbrs(i, S.size)) if (S.board[n] === me) prevLv = Math.max(prevLv, levelOf(groupAt(S.board, n, S.size).stones.length));
+    const newLv = levelOf(own.stones.length);
+    const prev = S.history.length ? S.history[S.history.length-1].board : null;
+    if (prev && prev.every((v,k) => v === nb[k])) return say("ko", "warn");
+
+    pushHistory();
+    S.board = nb; S.caps[me] += taken; S.last = i; S.passes = 0; S.turn = opp; S.hint = -1;
+    const entry = [["move", me, coord(i)]];
+    if (taken) entry.push(["took", taken]);
+    S.log.unshift(entry);
+    if (gameType === "capture" && taken && S.caps[me] >= target()){
+      S.mode = "over"; S.winner = me;
+      S.log.unshift([["winLog", me, target()]]);
+      say("winSay", "good", me, target());
+      render(); return;
+    }
+    if (newLv > prevLv && pieces !== "stone"){
+      say("levelUpR", "good", own.stones.length, me, pieces, prevLv, newLv);
+      S.log[0].push(["promotedR", pieces, newLv]);
+    }
+    else if (survived) say("survived", "good", survived, opp);
+    else if (taken) say("tookSay", "good", me, taken);
+    else {
+      const hit = allGroups(nb, S.size).filter(g => g.libs.size === 1 && !isImmortal(g));
+      const oppA = hit.filter(g => g.color === opp), meA = hit.filter(g => g.color === me);
+      if (oppA.length){
+        const g = oppA[0];
+        say("atari", "warn", opp, g.stones.length, coord([...g.libs][0]));
+        S.log[0].push(["atariLog"]);
+      } else if (meA.length){
+        const g = meA[0];
+        say("selfAtari", "warn", g.stones.length, coord([...g.libs][0]));
+      } else say("");
+    }
+    render();
+  }
+  function pushHistory(){
+    S.history.push({ board: S.board.slice(), turn: S.turn, caps: S.caps.slice(), last: S.last, passes: S.passes, log: S.log.slice() });
+  }
+  /* ---------- 変則碁盤 ---------- */
+  const rnd = (a, b) => a + Math.random() * (b - a), rint = (a, b) => Math.floor(rnd(a, b + 1));
+  function makeIrregular(kind){
+    const spec = { s: [9, 10, 42, 72], m: [13, 15, 125, 185], l: [19, 21, 290, 390] }[kind];
+    for (let tries = 0; tries < 400; tries++){
+      const G = rint(spec[0], spec[1]), mask = new Uint8Array(G*G);
+      const shapes = rint(3, 6);
+      for (let k = 0; k < shapes; k++){
+        const cx = rnd(.25, .75) * G, cy = rnd(.25, .75) * G, hx = rnd(.18, .42) * G, hy = rnd(.18, .42) * G, ell = Math.random() < .5;
+        for (let y = 0; y < G; y++) for (let x = 0; x < G; x++){
+          const dx = (x + .5 - cx) / hx, dy = (y + .5 - cy) / hy;
+          if (ell ? dx*dx + dy*dy <= 1 : Math.abs(dx) <= 1 && Math.abs(dy) <= 1) mask[y*G + x] = 1;
+        }
+      }
+      // 池（盤の中の穴）を少し
+      const holes = rint(0, Math.round(G / 6));
+      for (let k = 0; k < holes; k++){
+        const x = rint(2, G - 3), y = rint(2, G - 3);
+        mask[y*G + x] = 0; if (Math.random() < .5) mask[y*G + x + 1] = 0;
+      }
+      // 行き止まり（隣が1つ以下の点）を削る
+      for (let changed = true; changed; ){
+        changed = false;
+        for (let i = 0; i < mask.length; i++){
+          if (!mask[i]) continue;
+          const x = i % G; let c = 0;
+          if (x > 0 && mask[i-1]) c++; if (x < G-1 && mask[i+1]) c++;
+          if (i >= G && mask[i-G]) c++; if (i < G*G - G && mask[i+G]) c++;
+          if (c < 2){ mask[i] = 0; changed = true; }
+        }
+      }
+      // いちばん大きいかたまりだけ残す
+      const comp = new Int32Array(G*G).fill(-1); let best = -1, bestN = 0, id = 0;
+      for (let i = 0; i < mask.length; i++){
+        if (!mask[i] || comp[i] >= 0) continue;
+        const st = [i]; comp[i] = id; let cnt = 0;
+        while (st.length){
+          const p = st.pop(); cnt++;
+          const x = p % G;
+          for (const q of [x > 0 ? p-1 : -1, x < G-1 ? p+1 : -1, p-G, p+G]){
+            if (q >= 0 && q < G*G && mask[q] && comp[q] < 0){ comp[q] = id; st.push(q); }
+          }
+        }
+        if (cnt > bestN){ bestN = cnt; best = id; }
+        id++;
+      }
+      if (bestN < spec[2] || bestN > spec[3]) continue;
+      // 外枠に合わせて切り出し、正方形の中央へ
+      let x0 = G, x1 = 0, y0 = G, y1 = 0;
+      for (let i = 0; i < mask.length; i++) if (comp[i] === best){ const x = i % G, y = (i - x) / G; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      const w = x1 - x0 + 1, h = y1 - y0 + 1, N = Math.max(w, h);
+      if (Math.min(w, h) < N * .6) continue;
+      const out = new Uint8Array(N*N), ox = Math.floor((N - w) / 2), oy = Math.floor((N - h) / 2);
+      for (let i = 0; i < mask.length; i++) if (comp[i] === best){ const x = i % G, y = (i - x) / G; out[(y - y0 + oy)*N + (x - x0 + ox)] = 1; }
+      return { size: N, mask: out };
+    }
+    const N = kind === "s" ? 9 : kind === "m" ? 13 : 19;
+    return { size: N, mask: new Uint8Array(N*N).fill(1) };
+  }
+  // 変則碁盤の置き石：端から離れた所を、なるべく散らばるように選ぶ
+  function spreadPoints(h){
+    const n = S.size, depth = new Int16Array(n*n).fill(999), q = [];
+    for (let i = 0; i < n*n; i++){
+      const x = i % n, y = (i - x) / n;
+      const edge = !S.mask[i] || x === 0 || y === 0 || x === n-1 || y === n-1;
+      if (!S.mask[i]){ depth[i] = 0; q.push(i); }
+      else if (edge || nbrs(i, n).filter(q => S.mask[q]).length < 4){ depth[i] = 1; q.push(i); }
+    }
+    for (let k = 0; k < q.length; k++){
+      const p = q[k];
+      for (const r of nbrs(p, n)) if (depth[r] > depth[p] + 1){ depth[r] = depth[p] + 1; q.push(r); }
+    }
+    let cand = [];
+    for (const d of [3, 2, 1]){ cand = [...depth.keys()].filter(i => S.mask[i] && depth[i] >= d); if (cand.length >= h * 3) break; }
+    const pick = [], dist = (a, b) => Math.hypot(a % n - b % n, Math.floor(a / n) - Math.floor(b / n));
+    const cxy = cand.reduce((a, i) => [a[0] + i % n, a[1] + Math.floor(i / n)], [0, 0]).map(v => v / cand.length);
+    let first = cand[0], fd = -1;
+    for (const i of cand){ const d = Math.hypot(i % n - cxy[0], Math.floor(i / n) - cxy[1]); if (d > fd){ fd = d; first = i; } }
+    pick.push(first);
+    while (pick.length < h && pick.length < cand.length){
+      let bi = -1, bd = -1;
+      for (const i of cand){ if (pick.includes(i)) continue; const d = Math.min(...pick.map(p => dist(p, i))); if (d > bd){ bd = d; bi = i; } }
+      pick.push(bi);
+    }
+    return pick;
+  }
+  function clearBlack(){ for (let i = 0; i < S.board.length; i++) if (S.board[i] === 1) S.board[i] = 0; }
+
+  /* ---------- 置き石 ---------- */
+  function startGame(){
+    const sv = $("sel-size").value;
+    if (sv[0] === "r"){ const m = makeIrregular(sv[1]); S = newState(m.size, m.mask); }
+    else S = newState(parseInt(sv));
+    $("b-reroll").hidden = sv[0] !== "r";
+    const h = parseInt($("sel-hcap").value);
+    if (h >= 2){
+      S.mode = "setup"; S.hcap = h; $("sel-komi").value = "0";
+      say("hcBegin", "", h);
+    } else if (S.mask) say("newIrr", "", S.mask.reduce((a,v)=>a+v,0));
+    else say("newEven", "", S.size);
+    render();
+  }
+  const placedCount = () => S.board.reduce((a, v) => a + (v === 1), 0);
+  function toggleSetup(i){
+    if (S.board[i] === 3) return;
+    if (S.board[i] === 1){ S.board[i] = 0; say(""); }
+    else if (placedCount() >= S.hcap) return say("hcMax", "warn", S.hcap);
+    else S.board[i] = 1;
+    render();
+  }
+  function starPoints(size, h){
+    const e = size < 13 ? 2 : 3, f = size - 1 - e, m = (size - 1) / 2;
+    const ur = [f,e], ll = [e,f], lr = [f,f], ul = [e,e], c = [m,m], ml = [e,m], mr = [f,m], mt = [m,e], mb = [m,f];
+    const base = [ur, ll, lr, ul];
+    const sets = { 2: [ur,ll], 3: [ur,ll,lr], 4: base, 5: [...base,c], 6: [...base,ml,mr], 7: [...base,ml,mr,c], 8: [...base,ml,mr,mt,mb], 9: [...base,ml,mr,mt,mb,c] };
+    return sets[h].map(([x,y]) => y*size + x);
+  }
+  function finishSetup(){
+    const k = placedCount();
+    if (k !== S.hcap) return say("hcRemain", "warn", S.hcap - k);
+    S.mode = "play"; S.turn = 2; S.history = [];
+    S.log = [[["hcLog", S.hcap, [...S.board.keys()].filter(i => S.board[i] === 1).map(coord)]]];
+    say("hcGo", "good", S.hcap);
+    render();
+  }
+
+  function undo(){
+    if (S.mode === "setup") return;
+    if (S.mode === "score") return exitScoring();
+    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; }
+    const h = S.history.pop(); if (!h) return say("noUndo", "warn");
+    Object.assign(S, h); S.hint = -1; say("undone"); render();
+  }
+  function pass(){
+    if (S.mode !== "play") return;
+    pushHistory();
+    S.log.unshift([["passLog", S.turn]]); S.passes++; S.turn = 3 - S.turn; S.last = -1;
+    if (S.passes >= 2){
+      if (gameType === "capture") say("capFallback", "", target()); else say("bothPass");
+      enterScoring();
+    }
+    else { say("passed", "", 3 - S.turn); render(); }
+  }
+
+  /* ---------- 陣地・勢力 ---------- */
+  function territory(b, size){
+    const owner = new Int8Array(b.length), seen = new Uint8Array(b.length);
+    for (let i = 0; i < b.length; i++){
+      if (b[i] || seen[i]) continue;
+      const region = [], border = new Set(), st = [i]; seen[i] = 1;
+      while (st.length){
+        const p = st.pop(); region.push(p);
+        for (const n of nbrs(p, size)){
+          if (STONE(b[n])) border.add(b[n]);
+          else if (b[n] === 0 && !seen[n]){ seen[n] = 1; st.push(n); }
+        }
+      }
+      const o = border.size === 1 ? [...border][0] : 0;
+      region.forEach(p => owner[p] = o);
+    }
+    return owner;
+  }
+  function influence(b, size){
+    const inf = new Float32Array(b.length), R = 4, stones = [];
+    for (let i = 0; i < b.length; i++) if (STONE(b[i])) stones.push(i);
+    for (let i = 0; i < b.length; i++){
+      if (b[i]) continue;
+      const x = i % size, y = (i - x) / size; let s = 0;
+      for (const q of stones){
+        const qx = q % size, qy = (q - qx) / size, d = Math.abs(qx-x) + Math.abs(qy-y);
+        if (d <= R) s += (b[q] === 1 ? 1 : -1) / (d*d);
+      }
+      inf[i] = s;
+    }
+    return inf;
+  }
+
+  /* ---------- 隅の曲がり四目 判定 ---------- */
+  function bentFourGroups(b, size){
+    const res = [], L = size - 1;
+    const corners = [[0,0],[L,0],[0,L],[L,L]];
+    const isBentCorner = region => {
+      if (region.length !== 4) return false;
+      const set = new Set(region);
+      return corners.some(([cx,cy]) => {
+        const c = cy*size + cx; if (!set.has(c)) return false;
+        const dx = cx === 0 ? 1 : -1, dy = cy === 0 ? 1 : -1;
+        const at = (ax, ay) => (cy+ay)*size + (cx+ax);
+        const A = [c, at(dx,0), at(2*dx,0), at(0,dy)], B = [c, at(0,dy), at(0,2*dy), at(dx,0)];
+        return A.every(p => set.has(p)) || B.every(p => set.has(p));
+      });
+    };
+    for (const g of allGroups(b, size)){
+      const c = g.color, mine = new Set(g.stones), rseen = new Set(), eyes = [];
+      for (const s of g.stones) for (const n of nbrs(s, size)){
+        if (b[n] === c || b[n] === 3 || rseen.has(n)) continue;
+        const region = [], st = [n]; rseen.add(n); let enclosed = true;
+        while (st.length){
+          const p = st.pop(); region.push(p);
+          for (const q of nbrs(p, size)){
+            if (b[q] === c){ if (!mine.has(q)) enclosed = false; }
+            else if (b[q] !== 3 && !rseen.has(q)){ rseen.add(q); st.push(q); }
+          }
+        }
+        if (enclosed && region.length <= 12) eyes.push(region);
+      }
+      if (eyes.length === 1 && isBentCorner(eyes[0])) res.push({ g, region: eyes[0] });
+    }
+    return res;
+  }
+
+  /* ---------- 整地 ---------- */
+  function enterScoring(){
+    S.mode = "score"; S.dead = new Set(); S.seki = new Set(); S.safe = new Set(); S.hint = -1;
+    for (const r of RULES){
+      if (!r.on || !r.scoringSeki) continue;
+      for (const { g, region } of r.scoringSeki(r, S.board, S.size)){
+        g.stones.forEach(s => S.safe.add(s));
+        region.forEach(p => { S.seki.add(p); if (S.board[p]) S.safe.add(p); });
+        S.log.unshift([["bentLog", coord(g.stones[0])]]);
+      }
+    }
+    render();
+  }
+  function exitScoring(){ S.mode = "play"; S.dead.clear(); S.passes = 0; say("backPlay"); render(); }
+  function toggleDead(i){
+    if (!STONE(S.board[i])) return;
+    const g = groupAt(S.board, i, S.size), add = !S.dead.has(i);
+    if (add && isImmortal(g)) return say("immortalNoDead", "warn", g.stones.length);
+    if (add && S.safe.has(i)) return say("bentNoDead", "warn");
+    g.stones.forEach(s => add ? S.dead.add(s) : S.dead.delete(s));
+    render();
+  }
+  function scoreResult(){
+    const b = S.board.slice(); let deadB = 0, deadW = 0;
+    S.dead.forEach(i => { if (b[i] === 1) deadB++; else if (b[i] === 2) deadW++; b[i] = 0; });
+    const own = territory(b, S.size); let tb = 0, tw = 0;
+    (S.seki || []).forEach(p => own[p] = 0);
+    own.forEach((o,i) => { if (!b[i]){ if (o === 1) tb++; else if (o === 2) tw++; } });
+    return { b, own, tb, tw, pb: S.caps[1] + deadW, pw: S.caps[2] + deadB };
+  }
+
+  /* ---------- 描画 ---------- */
+  const cv = $("cv"), ctx = cv.getContext("2d");
+  let hover = -1, geom = { cell: 0 }, animating = false;
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  function draw(){
+    const W = cv.clientWidth, dpr = window.devicePixelRatio || 1;
+    if (!W) return;
+    if (cv.width !== Math.round(W*dpr)){ cv.width = Math.round(W*dpr); cv.height = Math.round(W*dpr); }
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    const n = S.size, cell = W / (n + 1); geom.cell = cell;
+    const P = k => cell * (k + 1);
+
+    // 榧の盤（変則碁盤は打てる所だけ木目にする）
+    const on = i => !S.mask || S.mask[i];
+    if (S.mask){
+      ctx.fillStyle = css("--bg"); ctx.fillRect(0,0,W,W);
+      ctx.save(); ctx.beginPath();
+      for (let i = 0; i < n*n; i++) if (S.mask[i]) ctx.rect(P(i % n) - cell*.56, P(Math.floor(i / n)) - cell*.56, cell*1.12, cell*1.12);
+      ctx.shadowColor = "rgba(30,20,5,.45)"; ctx.shadowBlur = cell*.3; ctx.shadowOffsetY = cell*.08;
+      ctx.fillStyle = css("--wood-b"); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.beginPath();
+      for (let i = 0; i < n*n; i++) if (S.mask[i]) ctx.rect(P(i % n) - cell*.56, P(Math.floor(i / n)) - cell*.56, cell*1.12, cell*1.12);
+      ctx.clip();
+    }
+    const g = ctx.createLinearGradient(0,0,W,W);
+    g.addColorStop(0, css("--wood-a")); g.addColorStop(1, css("--wood-b"));
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,W);
+    ctx.globalAlpha = .07; ctx.strokeStyle = "#5a3a10"; ctx.lineWidth = 1;
+    for (let k = 0; k < 26; k++){
+      ctx.beginPath(); const y0 = (k/26)*W;
+      for (let x = 0; x <= W; x += 8) ctx.lineTo(x, y0 + Math.sin(x/90 + k*1.7)*6 + Math.sin(x/23 + k)*1.5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    if (S.mask) ctx.restore();
+
+    // 陣地オーバーレイ
+    const scoring = S.mode === "score";
+    if (scoring){
+      const { own, b } = scoreResult();
+      for (let i = 0; i < b.length; i++){
+        if (b[i] || !own[i]) continue;
+        paintCell(i, own[i], .42, true);
+      }
+      ctx.strokeStyle = css("--accent"); ctx.lineWidth = Math.max(1.5, cell*.05);
+      ctx.setLineDash([cell*.1, cell*.07]);
+      S.seki.forEach(i => { const x = P(i % n), y = P(Math.floor(i / n)); ctx.strokeRect(x - cell*.44, y - cell*.44, cell*.88, cell*.88); });
+      ctx.setLineDash([]);
+    } else if (view === "territory"){
+      const own = territory(S.board, n);
+      for (let i = 0; i < own.length; i++) if (!S.board[i] && own[i]) paintCell(i, own[i], .38, true);
+    } else if (view === "influence"){
+      const inf = influence(S.board, n);
+      for (let i = 0; i < inf.length; i++){
+        const s = inf[i]; if (S.board[i] || Math.abs(s) < .12) continue;
+        paintCell(i, s > 0 ? 1 : 2, Math.min(.55, Math.abs(s)*.55 + .08), false);
+      }
+    }
+
+    // 線・星
+    ctx.strokeStyle = css("--grid"); ctx.lineWidth = Math.max(1, cell/30);
+    if (S.mask){
+      ctx.lineWidth = Math.max(1.2, cell/24);
+      ctx.beginPath();
+      for (let i = 0; i < n*n; i++){
+        if (!on(i)) continue;
+        const x = i % n, y = (i - x) / n;
+        if (x < n-1 && on(i+1)){ ctx.moveTo(P(x), P(y)); ctx.lineTo(P(x+1), P(y)); }
+        if (y < n-1 && on(i+n)){ ctx.moveTo(P(x), P(y)); ctx.lineTo(P(x), P(y+1)); }
+      }
+      ctx.stroke();
+    } else {
+    ctx.beginPath();
+    for (let k = 0; k < n; k++){ ctx.moveTo(P(0), P(k)); ctx.lineTo(P(n-1), P(k)); ctx.moveTo(P(k), P(0)); ctx.lineTo(P(k), P(n-1)); }
+    ctx.stroke();
+    ctx.lineWidth = Math.max(1.5, cell/18); ctx.strokeRect(P(0), P(0), P(n-1)-P(0), P(n-1)-P(0));
+    }
+    const stars = S.mask ? [] : n === 7 ? [2,4] : n === 9 ? [2,6] : n === 13 ? [3,6,9] : [3,9,15];
+    ctx.fillStyle = css("--grid");
+    for (const a of stars) for (const b of stars){
+      if (n === 9 && ((a === 6) !== (b === 6)) && false) continue;
+      ctx.beginPath(); ctx.arc(P(a), P(b), Math.max(2, cell*.09), 0, 7); ctx.fill();
+    }
+    if (!S.mask && (n === 7 || n === 9)){ const m = (n - 1) / 2; ctx.beginPath(); ctx.arc(P(m), P(m), Math.max(2, cell*.09), 0, 7); ctx.fill(); }
+
+    // 座標
+    ctx.fillStyle = css("--grid"); ctx.globalAlpha = .75;
+    ctx.font = `600 ${Math.max(9, cell*.3)}px "IBM Plex Mono", monospace`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (let k = 0; k < n; k++){
+      ctx.fillText(LETTERS[k], P(k), cell*.42); ctx.fillText(LETTERS[k], P(k), W - cell*.42);
+      ctx.fillText(String(n-k), cell*.42, P(k)); ctx.fillText(String(n-k), W - cell*.42, P(k));
+    }
+    ctx.globalAlpha = 1;
+
+    // 不死身の石群
+    const chainRule = RULES.find(r => r.id === "chain");
+    const immortalSet = new Set();
+    if (chainRule.on) for (const gr of allGroups(S.board, n)) if (isImmortal(gr)) gr.stones.forEach(s => immortalSet.add(s));
+
+    // 石（駒モードなら兵士・お城）
+    const r = cell * .47;
+    const sizeOf = new Int16Array(S.board.length);
+    for (const gr of allGroups(S.board, n)) gr.stones.forEach(s => sizeOf[s] = gr.stones.length);
+    const ataris = scoring ? [] : allGroups(S.board, n).filter(gr => gr.libs.size === 1 && !isImmortal(gr));
+    const atariSet = new Set(); ataris.forEach(gr => gr.stones.forEach(s => atariSet.add(s)));
+    const pulse = reduceMotion ? 1 : .55 + .45 * Math.sin(performance.now() / 1000 * 5);
+    const piece = pieces !== "stone";
+    // アタリの石は小刻みに震える
+    const now = performance.now() / 1000;
+    const shakeAt = i => (!atariSet.has(i) || reduceMotion) ? 0 :
+      cell * .045 * Math.sin(now * 38 + i * 1.7) * (.6 + .4 * Math.sin(now * 3.1 + i));
+    for (let i = 0; i < S.board.length; i++){
+      const c = S.board[i]; if (!STONE(c)) continue;
+      const x0 = P(i % n), y = P(Math.floor(i / n)), dead = scoring && S.dead.has(i);
+      const x = x0 + shakeAt(i);
+      if (piece){
+        // 足元の輪（不死身＝金、アタリ＝赤）
+        if (immortalSet.has(i) && !dead) baseRing(x0, y, r, css("--gold"), 1, false);
+        if (atariSet.has(i)) baseRing(x0, y, r, `rgba(226,58,40,${.55 + .45*pulse})`, pulse, true);
+        ctx.globalAlpha = dead ? .4 : 1;
+        drawPiece(x, y, r, c, levelOf(sizeOf[i]));
+      } else {
+        ctx.globalAlpha = dead ? .4 : 1;
+        drawStone(x, y, r, c);
+        ctx.globalAlpha = 1;
+        if (immortalSet.has(i) && !dead){
+          ctx.strokeStyle = css("--gold"); ctx.lineWidth = Math.max(2, cell*.07);
+          ctx.beginPath(); ctx.arc(x, y, r*.62, 0, 7); ctx.stroke();
+        }
+        if (atariSet.has(i)){
+          ctx.save();
+          ctx.shadowColor = "rgba(226,58,40,.9)"; ctx.shadowBlur = cell * .35 * pulse;
+          ctx.strokeStyle = `rgba(226,58,40,${.5 + .5*pulse})`; ctx.lineWidth = Math.max(2.5, cell*.09);
+          ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+          ctx.restore();
+        }
+      }
+      if (dead){
+        ctx.globalAlpha = 1; ctx.strokeStyle = c === 1 ? "#fff" : "#111"; ctx.lineWidth = Math.max(2, cell*.07);
+        const k = r*.45; ctx.beginPath(); ctx.moveTo(x-k,y-k); ctx.lineTo(x+k,y+k); ctx.moveTo(x+k,y-k); ctx.lineTo(x-k,y+k); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // アタリの「!」バッジ
+    atariSet.forEach(s => {
+      const x = P(s % n) + shakeAt(s), y = P(Math.floor(s / n));
+      const bx = x - r*.72, by = y - (piece ? r*1.15 : r*.72), br = Math.max(6, r*.3);
+      ctx.fillStyle = "#e23a28"; ctx.beginPath(); ctx.arc(bx, by, br, 0, 7); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(1, cell*.03); ctx.stroke();
+      ctx.fillStyle = "#fff"; ctx.font = `800 ${br*1.5}px "Zen Kaku Gothic New", sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("!", bx, by + br*.06);
+    });
+    if (ataris.length && !reduceMotion && !animating){ animating = true; requestAnimationFrame(() => { animating = false; draw(); }); }
+
+    function baseRing(x, y, r, color, glow, red){
+      ctx.save();
+      if (red){ ctx.shadowColor = "rgba(226,58,40,.9)"; ctx.shadowBlur = cell*.3*glow; }
+      ctx.strokeStyle = color; ctx.lineWidth = Math.max(2.5, cell*.08);
+      ctx.beginPath(); ctx.ellipse(x, y + r*.6, r*.88, r*.34, 0, 0, 7); ctx.stroke();
+      ctx.restore();
+    }
+
+    // 最終手
+    if (S.last >= 0 && S.board[S.last] && !scoring){
+      const x = P(S.last % n), y = P(Math.floor(S.last / n));
+      if (pieces === "stone"){
+        ctx.strokeStyle = S.board[S.last] === 1 ? "#fff" : "#111"; ctx.lineWidth = Math.max(1.5, cell*.06);
+        ctx.beginPath(); ctx.arc(x, y, r*.38, 0, 7); ctx.stroke();
+      } else {
+        ctx.fillStyle = "#d8452f"; ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(1, cell*.03);
+        ctx.beginPath(); ctx.arc(x + r*.72, y - r*1.0, r*.2, 0, 7); ctx.fill(); ctx.stroke();
+      }
+    }
+    // ヒント
+    if (S.hint >= 0 && !S.board[S.hint]){
+      const x = P(S.hint % n), y = P(Math.floor(S.hint / n));
+      ctx.strokeStyle = css("--accent"); ctx.lineWidth = Math.max(2, cell*.08);
+      ctx.setLineDash([cell*.12, cell*.08]); ctx.beginPath(); ctx.arc(x, y, r*.9, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // 打つ前の影
+    if (!scoring && S.mode !== "over" && hover >= 0 && !S.board[hover]){
+      const hx = P(hover % n), hy = P(Math.floor(hover / n));
+      ctx.globalAlpha = .45;
+      if (pieces !== "stone") drawPiece(hx, hy, r, S.turn, 1); else drawStone(hx, hy, r, S.turn);
+      ctx.globalAlpha = 1;
+    }
+
+    function paintCell(i, owner, alpha, marker){
+      const x = P(i % n), y = P(Math.floor(i / n));
+      ctx.fillStyle = owner === 1 ? `rgba(18,22,40,${alpha})` : `rgba(255,255,250,${alpha*1.35})`;
+      ctx.fillRect(x - cell/2, y - cell/2, cell, cell);
+      if (marker){
+        const m = cell*.26;
+        ctx.fillStyle = owner === 1 ? "#121418" : "#fbfaf5";
+        ctx.fillRect(x - m/2, y - m/2, m, m);
+        if (owner === 2){ ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 1; ctx.strokeRect(x - m/2, y - m/2, m, m); }
+      }
+    }
+  }
+  function drawStone(x, y, r, c){
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,.35)"; ctx.shadowBlur = r*.35; ctx.shadowOffsetX = r*.08; ctx.shadowOffsetY = r*.12;
+    const g = ctx.createRadialGradient(x - r*.35, y - r*.4, r*.1, x, y, r);
+    if (c === 1){ g.addColorStop(0, "#5c5c5c"); g.addColorStop(.45, "#1c1c1c"); g.addColorStop(1, "#050505"); }
+    else { g.addColorStop(0, "#ffffff"); g.addColorStop(.6, "#eeede6"); g.addColorStop(1, "#c9c7bd"); }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  /* ---------- 兵士・お城 ---------- */
+  // グレード：1〜(N-1)子=Lv1、N子以上=Lv2、2N子以上=Lv3（Nは連結ルールの数、初期値7）
+  const gradeN = () => RULES.find(r => r.id === "chain").n;
+  const levelOf = size => size >= gradeN()*2 ? 3 : size >= gradeN() ? 2 : 1;
+  const RANKS = new Proxy({}, { get: (_, k) => t("ranks")[k] });
+
+  // 立体の駒：兵士はおもちゃの兵隊のフィギュア、お城は奥行きのある箱で組んだ建物
+  const TONE = {
+    1: { f: "#2e3138", s: "#15171b", t: "#555a64", line: "rgba(0,0,0,.85)", hi: "#6a707c" },
+    2: { f: "#f3eee2", s: "#c6bca6", t: "#ffffff", line: "rgba(70,58,36,.75)", hi: "#ffffff" },
+    g: { f: "#e2b23d", s: "#a2731a", t: "#ffe9a6", line: "rgba(90,60,5,.85)", hi: "#fff3c8" },
+    red: { f: "#c8392b", s: "#8c2318", t: "#e86a55", line: "rgba(80,15,10,.8)", hi: "#f08c78" },
+    stone: { f: "#9a958a", s: "#6f6a60", t: "#bdb8ac", line: "rgba(40,36,30,.7)", hi: "#d0ccc2" }
+  };
+  function drawPiece(x, y, r, c, lv){
+    const T = TONE[c], G = TONE.g, R = TONE.red;
+    ctx.save(); ctx.translate(x, y); ctx.scale(r, r);
+    ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.lineWidth = .03;
+
+    // ---- 立体の部品 ----
+    const cyl = (tone, w) => {                    // 円柱の陰影（左が明るく右が暗い）
+      const g = ctx.createLinearGradient(-w, 0, w, 0);
+      g.addColorStop(0, tone.hi); g.addColorStop(.35, tone.f); g.addColorStop(.85, tone.s); g.addColorStop(1, tone.f);
+      return g;
+    };
+    const shade = (path, tone, cx, w) => {
+      ctx.save(); ctx.translate(cx, 0); path(); ctx.restore();
+      ctx.save(); ctx.translate(cx, 0); ctx.fillStyle = cyl(tone, w); ctx.restore();
+      ctx.save(); ctx.translate(cx, 0); path(); ctx.fillStyle = cyl(tone, w); ctx.fill(); ctx.strokeStyle = tone.line; ctx.stroke(); ctx.restore();
+    };
+    const rrect = (x0, y0, w, h, rad) => () => { ctx.beginPath(); ctx.roundRect(x0, y0, w, h, rad); };
+    const sphere = (cx, cy, rr, light, mid, dark, line) => {
+      const g = ctx.createRadialGradient(cx - rr*.4, cy - rr*.45, rr*.05, cx, cy, rr);
+      g.addColorStop(0, light); g.addColorStop(.5, mid); g.addColorStop(1, dark);
+      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 7); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = line; ctx.stroke();
+    };
+    const DX = .55, DY = -.4;                     // 奥行きの向き（右上）
+    const box = (cx, yb, w, h, d, tone, topTone = tone) => {
+      const l = cx - w/2, rt = cx + w/2, yt = yb - h, ox = d*DX, oy = d*DY;
+      ctx.strokeStyle = tone.line;
+      ctx.beginPath(); ctx.moveTo(rt, yb); ctx.lineTo(rt+ox, yb+oy); ctx.lineTo(rt+ox, yt+oy); ctx.lineTo(rt, yt); ctx.closePath();
+      ctx.fillStyle = tone.s; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(l, yt); ctx.lineTo(rt, yt); ctx.lineTo(rt+ox, yt+oy); ctx.lineTo(l+ox, yt+oy); ctx.closePath();
+      ctx.fillStyle = topTone.t; ctx.fill(); ctx.stroke();
+      const g = ctx.createLinearGradient(0, yt, 0, yb); g.addColorStop(0, tone.f); g.addColorStop(1, tone.s);
+      ctx.beginPath(); ctx.rect(l, yt, w, h); ctx.fillStyle = tone.f; ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,.08)"; ctx.fillRect(l, yb - h*.25, w, h*.25); ctx.strokeRect(l, yt, w, h);
+    };
+    const roof = (cx, yb, wb, wt, h, d, tone) => {   // 瓦屋根（台形）
+      const ox = d*DX, oy = d*DY, yt = yb - h;
+      ctx.strokeStyle = tone.line;
+      ctx.beginPath(); ctx.moveTo(cx+wb/2, yb); ctx.lineTo(cx+wb/2+ox, yb+oy); ctx.lineTo(cx+wt/2+ox, yt+oy); ctx.lineTo(cx+wt/2, yt); ctx.closePath();
+      ctx.fillStyle = tone.s; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-wt/2, yt); ctx.lineTo(cx+wt/2, yt); ctx.lineTo(cx+wt/2+ox, yt+oy); ctx.lineTo(cx-wt/2+ox, yt+oy); ctx.closePath();
+      ctx.fillStyle = tone.t; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-wb/2-.04, yb+.02); ctx.lineTo(cx+wb/2+.04, yb+.02); ctx.lineTo(cx+wt/2, yt); ctx.lineTo(cx-wt/2, yt); ctx.closePath();
+      ctx.fillStyle = tone.f; ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255,.12)";
+      for (let k = 1; k < 4; k++){ const yy = yb - h*k/4; ctx.beginPath(); ctx.moveTo(cx - (wb + (wt-wb)*k/4)/2, yy); ctx.lineTo(cx + (wb + (wt-wb)*k/4)/2, yy); ctx.stroke(); }
+    };
+
+    // 盤に落ちる影
+    ctx.fillStyle = "rgba(40,22,4,.35)";
+    ctx.beginPath(); ctx.ellipse(.16, .62, .72, .2, 0, 0, 7); ctx.fill();
+
+    if (pieces === "soldier"){
+      // 草の台座
+      ctx.beginPath(); ctx.ellipse(0, .62, .48, .13, 0, 0, 7); ctx.fillStyle = "#2f5a26"; ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, .56, .48, .13, 0, 0, 7); ctx.fillStyle = lv === 3 ? G.f : "#4c8a3b"; ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.stroke();
+
+      const armor = lv === 3 ? G : T;
+      // マント（騎士・将軍）
+      if (lv >= 2){
+        ctx.beginPath(); ctx.moveTo(-.22, -.36); ctx.lineTo(.22, -.36); ctx.lineTo(.34, .46); ctx.quadraticCurveTo(0, .52, -.34, .46); ctx.closePath();
+        ctx.fillStyle = R.s; ctx.fill(); ctx.strokeStyle = R.line; ctx.stroke();
+      }
+      // 脚とブーツ
+      shade(rrect(-.08, .08, .16, .46, .05), T, -.11, .08);
+      shade(rrect(-.08, .08, .16, .46, .05), T, .11, .08);
+      ctx.fillStyle = "#1c120a"; ctx.beginPath(); ctx.roundRect(-.2, .42, .18, .12, .04); ctx.roundRect(.02, .42, .18, .12, .04); ctx.fill();
+      // 胴体
+      shade(rrect(-.24, -.38, .48, .54, .1), armor, 0, .24);
+      ctx.fillStyle = lv === 3 ? T.f : "#6b4320"; ctx.fillRect(-.24, .02, .48, .07);           // ベルト
+      ctx.fillStyle = G.f; ctx.fillRect(-.04, .015, .08, .09);
+      if (lv < 3){ ctx.fillStyle = c === 1 ? G.f : "#8a6a2a"; [-.26,-.16,-.06].forEach(yy => { ctx.beginPath(); ctx.arc(0, yy, .025, 0, 7); ctx.fill(); }); }
+      else { ctx.strokeStyle = T.f; ctx.lineWidth = .07; ctx.beginPath(); ctx.moveTo(-.2, -.34); ctx.lineTo(.2, .0); ctx.stroke(); ctx.lineWidth = .03; }  // たすき
+      // 左腕
+      shade(rrect(-.065, -.34, .13, .44, .06), T, -.3, .065);
+      // 右腕（武器を持つ）
+      shade(rrect(-.065, -.34, .13, .34, .06), T, .3, .065);
+      sphere(.31, .02, .07, "#ffe2c4", "#efc39a", "#b98558", "rgba(80,40,10,.6)");
+      // 武器
+      if (lv === 3){
+        ctx.save(); ctx.translate(.31, .02); ctx.rotate(-.35);
+        ctx.fillStyle = "#dfe4ea"; ctx.strokeStyle = "rgba(40,50,60,.8)";
+        ctx.beginPath(); ctx.moveTo(-.035, -.08); ctx.lineTo(-.035, -.95); ctx.lineTo(0, -1.04); ctx.lineTo(.035, -.95); ctx.lineTo(.035, -.08); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = G.f; ctx.fillRect(-.12, -.1, .24, .05); ctx.fillRect(-.03, -.05, .06, .14);
+        ctx.restore();
+      } else {
+        const g = ctx.createLinearGradient(.4, 0, .46, 0); g.addColorStop(0, "#c9915a"); g.addColorStop(1, "#6b4320");
+        ctx.fillStyle = g; ctx.fillRect(.385, -1.0, .05, 1.52);
+        ctx.fillStyle = lv === 2 ? G.f : "#d8dde3"; ctx.strokeStyle = "rgba(40,50,60,.8)";
+        ctx.beginPath(); ctx.moveTo(.41, -1.18); ctx.lineTo(.34, -.98); ctx.lineTo(.48, -.98); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      // 盾（騎士）
+      if (lv === 2){
+        ctx.beginPath(); ctx.moveTo(-.48, -.22); ctx.lineTo(-.14, -.22); ctx.lineTo(-.14, .06); ctx.quadraticCurveTo(-.31, .3, -.48, .06); ctx.closePath();
+        const g = ctx.createLinearGradient(-.48, 0, -.14, 0); g.addColorStop(0, T.hi); g.addColorStop(.5, T.f); g.addColorStop(1, T.s);
+        ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = G.f; ctx.lineWidth = .05; ctx.stroke(); ctx.lineWidth = .03;
+        ctx.fillStyle = G.f; ctx.beginPath(); ctx.arc(-.31, -.06, .06, 0, 7); ctx.fill();
+      }
+      // 頭
+      sphere(0, -.54, .17, "#ffe6cc", "#f0c79e", "#b98558", "rgba(80,40,10,.6)");
+      ctx.fillStyle = "#2a1a10"; ctx.beginPath(); ctx.arc(-.06, -.52, .022, 0, 7); ctx.arc(.06, -.52, .022, 0, 7); ctx.fill();
+      // かぶと
+      const hT = lv === 3 ? G : T;
+      ctx.beginPath(); ctx.ellipse(0, -.6, .2, .19, 0, Math.PI, 0); ctx.closePath();
+      const hg = ctx.createRadialGradient(-.07, -.72, .02, 0, -.6, .22); hg.addColorStop(0, hT.hi); hg.addColorStop(.5, hT.f); hg.addColorStop(1, hT.s);
+      ctx.fillStyle = hg; ctx.fill(); ctx.strokeStyle = hT.line; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, -.6, .23, .045, 0, 0, 7); ctx.fillStyle = hT.s; ctx.fill(); ctx.stroke();
+      if (lv === 2){
+        ctx.beginPath(); ctx.moveTo(0, -.78); ctx.quadraticCurveTo(.08, -1.02, .26, -.98); ctx.quadraticCurveTo(.12, -.9, .05, -.76); ctx.closePath();
+        ctx.fillStyle = R.f; ctx.fill(); ctx.strokeStyle = R.line; ctx.stroke();
+      }
+      if (lv === 3){
+        ctx.beginPath(); ctx.moveTo(-.18, -.74); ctx.lineTo(-.2, -.92); ctx.lineTo(-.09, -.82); ctx.lineTo(0, -.98); ctx.lineTo(.09, -.82); ctx.lineTo(.2, -.92); ctx.lineTo(.18, -.74); ctx.closePath();
+        ctx.fillStyle = G.f; ctx.fill(); ctx.strokeStyle = G.line; ctx.stroke();
+        ctx.fillStyle = R.f; ctx.beginPath(); ctx.arc(0, -.86, .03, 0, 7); ctx.fill();
+      }
+    } else {
+      const trim = lv === 3 ? G : T;
+      if (lv === 1){
+        // 砦：四角い塔
+        box(-.06, .56, .54, .78, .3, T);
+        const yt = .56 - .78;
+        for (const cx of [-.27, -.06, .15]) box(cx, yt, .12, .14, .3, T);
+        ctx.fillStyle = "rgba(0,0,0,.6)";
+        ctx.beginPath(); ctx.moveTo(-.16, .56); ctx.lineTo(-.16, .34); ctx.arc(-.06, .34, .1, Math.PI, 0); ctx.lineTo(.04, .56); ctx.closePath(); ctx.fill();
+        ctx.fillRect(-.1, -.06, .08, .12);
+      } else if (lv === 2){
+        // お城：城壁と2本の塔
+        box(-.08, .56, .82, .44, .26, T);
+        for (const cx of [-.38, -.18, .02, .22]) box(cx, .12, .1, .1, .26, T);
+        box(-.4, .56, .3, .92, .3, T); box(.26, .56, .3, .92, .3, T);
+        for (const cx of [-.48, -.32]) box(cx, -.36, .1, .12, .3, T);
+        for (const cx of [.18, .34]) box(cx, -.36, .1, .12, .3, T);
+        ctx.fillStyle = "rgba(0,0,0,.6)";
+        ctx.beginPath(); ctx.moveTo(-.18, .56); ctx.lineTo(-.18, .36); ctx.arc(-.08, .36, .1, Math.PI, 0); ctx.lineTo(.02, .56); ctx.closePath(); ctx.fill();
+        ctx.fillRect(-.44, -.12, .07, .12); ctx.fillRect(.22, -.12, .07, .12);
+        ctx.strokeStyle = "#3b2a12"; ctx.lineWidth = .04; ctx.beginPath(); ctx.moveTo(.34, -.5); ctx.lineTo(.34, -.92); ctx.stroke(); ctx.lineWidth = .03;
+        ctx.beginPath(); ctx.moveTo(.34, -.92); ctx.lineTo(.62, -.84); ctx.lineTo(.34, -.76); ctx.closePath(); ctx.fillStyle = R.f; ctx.fill();
+      } else {
+        // 天守閣：石垣の上に三重の屋根（黒は烏城、白は白鷺城のイメージ）
+        const wall = T, roofT = c === 1 ? { f: "#20232a", s: "#101216", t: "#3a3f49", line: "rgba(0,0,0,.9)" } : { f: "#5d6878", s: "#3e4755", t: "#7d8898", line: "rgba(20,25,35,.8)" };
+        // 石垣
+        ctx.strokeStyle = TONE.stone.line;
+        ctx.beginPath(); ctx.moveTo(.42, .56); ctx.lineTo(.42+.14, .56-.1); ctx.lineTo(.36+.14, .34-.1); ctx.lineTo(.36, .34); ctx.closePath(); ctx.fillStyle = TONE.stone.s; ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-.48, .56); ctx.lineTo(.42, .56); ctx.lineTo(.36, .34); ctx.lineTo(-.42, .34); ctx.closePath(); ctx.fillStyle = TONE.stone.f; ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = "rgba(40,36,30,.35)";
+        [.41, .48].forEach(yy => { ctx.beginPath(); ctx.moveTo(-.46, yy); ctx.lineTo(.4, yy); ctx.stroke(); });
+        // 一層目
+        box(-.03, .34, .64, .22, .24, wall);
+        roof(-.03, .12, .86, .46, .14, .3, roofT);
+        // 二層目
+        box(-.03, -.02, .44, .2, .2, wall);
+        roof(-.03, -.22, .66, .3, .13, .26, roofT);
+        // 三層目
+        box(-.03, -.35, .28, .17, .16, wall);
+        roof(-.03, -.52, .48, .06, .2, .2, roofT);
+        // 窓
+        ctx.fillStyle = c === 1 ? "#e3b23c" : "#2a2f38";
+        for (const cx of [-.25, -.1, .05, .2]) ctx.fillRect(cx - .03, .19, .06, .08);
+        for (const cx of [-.13, .07]) ctx.fillRect(cx - .03, -.16, .06, .07);
+        ctx.fillRect(-.06, -.48, .06, .06);
+        // 金のしゃちほこ
+        ctx.fillStyle = G.f; ctx.strokeStyle = G.line;
+        for (const sx of [-.07, .05]){ ctx.beginPath(); ctx.moveTo(sx, -.72); ctx.quadraticCurveTo(sx - .03, -.84, sx + (sx < 0 ? -.05 : .05), -.86); ctx.lineTo(sx + .02, -.72); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+        // 金の飾り帯
+        ctx.fillStyle = G.f; ctx.fillRect(-.35, .1, .64, .025); ctx.fillRect(-.25, -.24, .44, .02);
+      }
+    }
+    ctx.restore();
+  }
+
+  /* ---------- UI ---------- */
+  function say(k, kind, ...args){
+    lastToast = k ? { k, kind, args } : null;
+    const el = $("toast"); el.textContent = k ? t(k, ...args) : ""; el.className = "toast" + (kind ? " " + kind : "");
+  }
+  const logText = e => e.map(([k, ...a]) => t(k, ...a)).join(lang === "ja" ? "　" : " · ");
+  function applyLang(){
+    document.documentElement.lang = lang;
+    document.title = t("title");
+    document.querySelectorAll("[data-i]").forEach(el => { el.textContent = t(el.dataset.i, el.dataset.n !== undefined ? (isNaN(+el.dataset.n) ? el.dataset.n : +el.dataset.n) : undefined); });
+    document.querySelectorAll("[data-ia]").forEach(el => el.setAttribute("aria-label", t(el.dataset.ia)));
+    document.querySelectorAll("[data-il]").forEach(el => el.setAttribute("label", t(el.dataset.il)));
+    document.querySelectorAll("[data-lang]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    if (lastToast) say(lastToast.k, lastToast.kind, ...lastToast.args);
+    renderRules();
+  }
+
+  function renderRules(){
+    const host = $("rules"); host.innerHTML = "";
+    for (const r of RULES){
+      const d = document.createElement("div"); d.className = "rule";
+      d.innerHTML = `
+        <div class="rule-head"><strong>${r.name(r)}</strong>
+          <label class="switch"><input type="checkbox" id="rule-${r.id}" ${r.on ? "checked" : ""} aria-label="${r.name(r)}"><span></span></label></div>
+        <p>${r.desc(r)}</p>
+        <div class="rule-tools">
+          ${r.param ? `<label class="stepper" for="rule-${r.id}-p">${r.param.label()}<input type="number" id="rule-${r.id}-p" min="${r.param.min}" max="${r.param.max}" value="${r[r.param.key]}"></label>` : ""}
+          <button class="btn small" type="button" data-demo="${r.demo}">${t("demo")}</button>
+        </div>`;
+      host.appendChild(d);
+      d.querySelector(`#rule-${r.id}`).addEventListener("change", e => {
+        r.on = e.target.checked; saveRules();
+        say("ruleToggled", "", r.name(r), r.on);
+        if (S.mode === "score") enterScoring(); else render();
+      });
+      if (r.param) d.querySelector(`#rule-${r.id}-p`).addEventListener("change", e => {
+        const v = Math.max(r.param.min, Math.min(r.param.max, parseInt(e.target.value) || r[r.param.key]));
+        r[r.param.key] = v; saveRules(); renderRules(); render();
+      });
+      d.querySelector("[data-demo]").addEventListener("click", () => loadDemo(r.demo));
+    }
+  }
+
+  function render(){
+    const scoring = S.mode === "score";
+    $("turn-dot").className = "dot " + (S.turn === 1 ? "b" : "w");
+    const setup = S.mode === "setup", over = S.mode === "over";
+    document.querySelectorAll("[data-type]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.type === gameType)));
+    const cap = gameType === "capture";
+    $("cap-opts").hidden = !cap; $("goal").hidden = !cap;
+    if (cap){
+      const K = target(), pip = n => Array.from({length: K}, (_, k) => `<span class="pip${k < n ? " on" : ""}"></span>`).join("");
+      $("pips-b").innerHTML = pip(Math.min(K, S.caps[1])); $("pips-w").innerHTML = pip(Math.min(K, S.caps[2]));
+      $("win").hidden = !over; if (over) $("win").textContent = t("winBanner", S.winner);
+    }
+    const chainOn = RULES.find(r => r.id === "chain");
+    $("type-note").textContent = cap
+      ? t("typeNoteCap", target(), chainOn.on, chainOn.n)
+      : t("typeNoteTerr");
+    $("turn-text").textContent = scoring ? t("scoringT") : setup ? t("setupT") : over ? t("overT") : t("turnOf", S.turn);
+    $("setup-sec").hidden = !setup;
+    if (setup){
+      const k = placedCount();
+      $("hc-count").textContent = k; $("hc-total").textContent = S.hcap;
+      $("b-hc-start").disabled = k !== S.hcap;
+    }
+    $("b-score").disabled = setup; $("b-undo").disabled = setup;
+    $("cap-b").textContent = S.caps[1]; $("cap-w").textContent = S.caps[2];
+
+    // 形勢
+    const inf = influence(S.board, S.size), own = territory(S.board, S.size);
+    let eb = 0, ew = 0, tb = 0, tw = 0;
+    for (let i = 0; i < S.board.length; i++){
+      if (S.board[i]) continue;
+      if (inf[i] > .12) eb++; else if (inf[i] < -.12) ew++;
+      if (own[i] === 1) tb++; else if (own[i] === 2) tw++;
+    }
+    eb += S.caps[1]; ew += S.caps[2];
+    const k = komi(), ewk = ew + k;
+    $("bar-b").style.width = (eb + ewk ? (eb / (eb + ewk)) * 100 : 50) + "%";
+    $("est-b").innerHTML = `${t("black")} <span class="num">${eb}</span>`;
+    $("est-w").innerHTML = `${t("white")} <span class="num">${ew}${k ? "+" + k : ""}</span>`;
+    $("est-b").className = eb > ewk ? "lead" : ""; $("est-w").className = ewk > eb ? "lead" : "";
+    $("terr-b").textContent = tb; $("terr-w").textContent = tw;
+
+    // 整地
+    $("score-sec").hidden = !scoring;
+    $("b-score").textContent = scoring ? t("backToGame") : t("endCount");
+    $("b-pass").disabled = scoring || setup || over;
+    $("b-score").disabled = setup || over;
+    if (scoring){
+      const R = scoreResult(), sb = R.tb + R.pb, sw = R.tw + R.pw + k;
+      $("result").innerHTML = `
+        <span class="dot b"></span><span>${t("terrL")} <span class="num">${R.tb}</span> + ${t("capsL")} <span class="num">${R.pb}</span></span><span class="tot">${sb}</span>
+        <span class="dot w"></span><span>${t("terrL")} <span class="num">${R.tw}</span> + ${t("capsL")} <span class="num">${R.pw}</span>${k ? ` + ${t("komiAdd")} <span class="num">${k}</span>` : ""}</span><span class="tot">${sw}</span>`;
+      $("verdict").textContent = sb === sw ? t("jigo") : t("verdict", sb > sw ? 1 : 2, Math.abs(sb - sw));
+    }
+
+    document.querySelectorAll("[data-piece]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.piece === pieces)));
+    const N = gradeN();
+    $("piece-note").textContent = pieces === "stone" ? t("pieceStone") : t("pieceGrades", RANKS[pieces], N);
+    document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
+    $("view-note").textContent = t(scoring ? "viewScore" : view === "influence" ? "viewInf" : view === "territory" ? "viewTerr" : "viewNone");
+
+    $("log").innerHTML = S.log.slice(0, 12).map((e, idx) =>
+      `<li><span class="num">${S.log.length - idx}.</span> ${logText(e)}</li>`).join("") || `<li>${t("logEmpty")}</li>`;
+    draw();
+  }
+
+  /* ---------- 例題 ---------- */
+  function setup(size, black, white, turn){
+    S = newState(size); $("sel-size").value = String(size); $("b-reroll").hidden = true;
+    const xy = ([x,y]) => y*size + x;
+    black.forEach(p => S.board[xy(p)] = 1); white.forEach(p => S.board[xy(p)] = 2);
+    S.turn = turn; return xy;
+  }
+  function loadDemo(which){
+    if (which === "chain"){
+      const B = [], W = [[0,4]];
+      for (let x = 1; x <= 7; x++){ B.push([x,4]); W.push([x,3]); W.push([x,5]); }
+      const xy = setup(9, B, W, 2);
+      S.hint = xy([8,4]);
+      S.log = [[["demoChainLog"]]];
+      say("demoChainSay");
+    } else {
+      const B = [[3,0],[3,1],[2,1],[1,1],[1,2],[0,2]];
+      const W = [[4,0],[4,1],[4,2],[3,2],[2,2],[2,3],[1,3],[0,3]];
+      setup(9, B, W, 1);
+      S.log = [[["demoBentLog"]]];
+      enterScoring();
+      say("demoBentSay");
+      return;
+    }
+    render();
+  }
+  function sample(){
+    S = newState(9);
+    const moves = ["C7","G3","G7","C3","E5","D4","E3","E4","F4","D5","D6","C5","F5","G6","F6","H7"];
+    for (const m of moves){
+      const x = LETTERS.indexOf(m[0]), y = 9 - parseInt(m.slice(1));
+      play(y*9 + x);
+    }
+    say("sampleSay");
+  }
+
+  /* ---------- 入力 ---------- */
+  function pointFromEvent(e){
+    const rect = cv.getBoundingClientRect(), cell = rect.width / (S.size + 1);
+    const x = Math.round((e.clientX - rect.left) / cell) - 1, y = Math.round((e.clientY - rect.top) / cell) - 1;
+    return (x < 0 || y < 0 || x >= S.size || y >= S.size) ? -1 : y*S.size + x;
+  }
+  cv.addEventListener("pointermove", e => { const p = pointFromEvent(e); if (p !== hover){ hover = p; draw(); } });
+  cv.addEventListener("pointerleave", () => { hover = -1; draw(); });
+  cv.addEventListener("click", e => {
+    const p = pointFromEvent(e); if (p < 0) return;
+    if (S.mode === "over") return say("overClick");
+    if (S.mode === "score") toggleDead(p); else if (S.mode === "setup") toggleSetup(p); else play(p);
+  });
+  document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => { view = b.dataset.view; store.set("go-view", view); render(); }));
+  document.querySelectorAll("[data-piece]").forEach(b => b.addEventListener("click", () => { pieces = b.dataset.piece; store.set("go-pieces", pieces); render(); }));
+  $("b-pass").addEventListener("click", pass);
+  $("b-undo").addEventListener("click", undo);
+  $("b-score").addEventListener("click", () => {
+    if (S.mode === "over") return;
+    if (S.mode === "score") return exitScoring();
+    if (gameType === "capture") say("capFallback", "", target()); else say("deadHint");
+    enterScoring();
+  });
+  document.querySelectorAll("[data-type]").forEach(b => b.addEventListener("click", () => {
+    if (gameType === b.dataset.type) return;
+    gameType = b.dataset.type; store.set("go-type", gameType); startGame();
+  }));
+  $("sel-target").addEventListener("change", e => { store.set("go-target", parseInt(e.target.value)); startGame(); });
+  $("b-new").addEventListener("click", startGame);
+  $("sel-size").addEventListener("change", startGame);
+  $("sel-hcap").addEventListener("change", startGame);
+  $("b-hc-star").addEventListener("click", () => { clearBlack(); (S.mask ? spreadPoints(S.hcap) : starPoints(S.size, S.hcap)).forEach(i => S.board[i] = 1); say("starPlaced"); render(); });
+  $("b-hc-clear").addEventListener("click", () => { clearBlack(); say(""); render(); });
+  $("b-reroll").addEventListener("click", startGame);
+  $("b-hc-start").addEventListener("click", finishSetup);
+  $("sel-komi").addEventListener("change", render);
+  new ResizeObserver(() => draw()).observe(cv);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+
+  document.querySelectorAll("[data-lang]").forEach(b => b.addEventListener("click", () => {
+    lang = b.dataset.lang; store.set("go-lang", lang); applyLang(); render();
+  }));
+  applyLang();
+  sample();
+  render();
+})();
+</script>
+
+</body>
+</html>

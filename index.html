@@ -282,6 +282,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "変則・小（7〜9路くらい）", irrM: "変則・中（13路くらい）", irrL: "変則・大（19路くらい）", reroll: "別の形にする",
       komiL: "コミ", none: "なし", optKomi: n => `${n}目`,
       hcapL: "置き石", hcapNone: "なし（互先）", optHcap: n => `${KAN[n]}子局`,
+      ruleFlipName: n => `${n}子はさむと裏返る（＋オセロルール）`,
+      ruleFlipDesc: n => `打った石と自分の石で、相手の石を縦・横・斜めの一直線に${n}子以上はさむと、はさんだ石が自分の色に変わります。相手の石の間に自分から打ち込んでも、自分の石は裏返りません。裏返した石は取った石（アゲハマ）には数えません。`,
+      paramFlip: "はさむ石の数", flipLog: n => `${n}子裏返し`,
+      flipSay: (c, n, k) => `${col(c)}が${n}子を裏返しました！${k ? `さらに${k}子取りました。` : ""}`,
+      demoFlipLog: "例題：オセロ挟み",
+      demoFlipSay: n => `黒番。点線の所に打つと、白${n}子を黒ではさめます。ルールONなら全部黒に裏返ります。`,
       demo: "例題で試す", paramN: "必要な石の数", logEmpty: "まだ着手はありません",
       ruleChainName: n => `${n}子つながれば眼なしで生き`,
       ruleChainDesc: n => `縦横に${n}個以上つながった石は、呼吸点がなくなっても取り上げられず、整地でも死に石にできません。金色の輪が目印。`,
@@ -362,6 +368,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "Irregular S (≈ 7–9)", irrM: "Irregular M (≈ 13)", irrL: "Irregular L (≈ 19)", reroll: "New shape",
       komiL: "Komi", none: "None", optKomi: n => `${n}`,
       hcapL: "Handicap", hcapNone: "None (even)", optHcap: n => pl(n, "stone"),
+      ruleFlipName: n => `Sandwich ${n} to flip (+ Othello rule)`,
+      ruleFlipDesc: n => `Play so that ${n} or more opponent stones lie in a straight line (vertical, horizontal or diagonal) between your new stone and another of yours, and they flip to your color. Playing into a gap between opponent stones never flips your own stone. Flipped stones don't count as captures.`,
+      paramFlip: "Stones to sandwich", flipLog: n => `flipped ${n}`,
+      flipSay: (c, n, k) => `${col(c)} flipped ${pl(n, "stone")}!${k ? ` Then captured ${k}.` : ""}`,
+      demoFlipLog: "Example: Othello flip",
+      demoFlipSay: n => `Black to play. Playing at the dotted point sandwiches ${n} white stones. With the rule ON, they all flip to black.`,
       demo: "Try an example", paramN: "Stones needed", logEmpty: "No moves yet",
       ruleChainName: n => `${n} connected stones live without eyes`,
       ruleChainDesc: n => `A group of ${n} or more stones connected vertically or horizontally can't be captured even with no liberties, and can't be marked dead when counting. Marked with a gold ring.`,
@@ -435,6 +447,13 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       immortal: (r, g) => g.stones.length >= r.n
     },
     {
+      id: "flip", on: false, n: 5,
+      name: r => t("ruleFlipName", r.n),
+      desc: r => t("ruleFlipDesc", r.n),
+      param: { key: "n", label: () => t("paramFlip"), min: 1, max: 15 },
+      demo: "flip"
+    },
+    {
       id: "bent", on: true,
       name: () => t("ruleBentName"),
       desc: () => t("ruleBentDesc"),
@@ -501,10 +520,26 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (S.board[i]) return say("occupied", "warn");
     const nb = S.board.slice(), me = S.turn, opp = 3 - me;
     nb[i] = me;
+    // オセロ挟み：打った石と自分の石で、相手の石を一直線にN子以上はさむと裏返る
+    const flipRule = RULES.find(r => r.id === "flip");
+    let flipped = 0;
+    if (flipRule.on){
+      const n = S.size, x0 = i % n, y0 = (i - x0) / n;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
+        const line = []; let x = x0 + dx, y = y0 + dy;
+        while (x >= 0 && y >= 0 && x < n && y < n && nb[y*n + x] === opp){ line.push(y*n + x); x += dx; y += dy; }
+        if (line.length >= flipRule.n && x >= 0 && y >= 0 && x < n && y < n && nb[y*n + x] === me){
+          line.forEach(p => nb[p] = me); flipped += line.length;
+        }
+      }
+    }
     let taken = 0, survived = 0;
-    for (const n of nbrs(i, S.size)){
-      if (nb[n] !== opp) continue;
+    const checked = new Set();
+    const cands = flipped ? [...nb.keys()].filter(k => nb[k] === opp) : nbrs(i, S.size);
+    for (const n of cands){
+      if (nb[n] !== opp || checked.has(n)) continue;
       const g = groupAt(nb, n, S.size);
+      g.stones.forEach(s => checked.add(s));
       if (g.libs.size) continue;
       if (isImmortal(g)){ survived = g.stones.length; continue; }
       g.stones.forEach(s => nb[s] = 0); taken += g.stones.length;
@@ -520,6 +555,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     pushHistory();
     S.board = nb; S.caps[me] += taken; S.last = i; S.passes = 0; S.turn = opp; S.hint = -1;
     const entry = [["move", me, coord(i)]];
+    if (flipped) entry.push(["flipLog", flipped]);
     if (taken) entry.push(["took", taken]);
     S.log.unshift(entry);
     if (gameType === "capture" && taken && S.caps[me] >= target()){
@@ -528,7 +564,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       say("winSay", "good", me, target());
       render(); return;
     }
-    if (newLv > prevLv && pieces !== "stone"){
+    if (flipped) say("flipSay", "good", me, flipped, taken);
+    else if (newLv > prevLv && pieces !== "stone"){
       say("levelUpR", "good", own.stones.length, me, pieces, prevLv, newLv);
       S.log[0].push(["promotedR", pieces, newLv]);
     }
@@ -1307,6 +1344,18 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     S.turn = turn; return xy;
   }
   function loadDemo(which){
+    if (which === "flip"){
+      const fr = RULES.find(r => r.id === "flip"), k = fr.n;
+      const sz = k <= 5 ? 9 : k <= 9 ? 13 : 19, y = Math.floor(sz / 2), x0 = Math.floor((sz - (k + 2)) / 2);
+      const W = []; for (let j = 1; j <= k; j++) W.push([x0 + j, y]);
+      const B = [[x0, y], [x0 + 1, y - 2], [x0 + k, y + 2]];
+      const xy = setup(sz, B, W, 1);
+      S.hint = xy([x0 + k + 1, y]);
+      S.log = [[["demoFlipLog"]]];
+      if (!fr.on){ fr.on = true; saveRules(); renderRules(); }
+      say("demoFlipSay", "", k);
+      render(); return;
+    }
     if (which === "chain"){
       const B = [], W = [[0,4]];
       for (let x = 1; x <= 7; x++){ B.push([x,4]); W.push([x,3]); W.push([x,5]); }

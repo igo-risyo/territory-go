@@ -393,6 +393,11 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "変則・小（7〜9路くらい）", irrM: "変則・中（13路くらい）", irrL: "変則・大（19路くらい）", reroll: "別の形にする",
       komiL: "コミ", none: "なし", optKomi: n => `${n}目`,
       hcapL: "置き石", hcapNone: "なし（互先）", optHcap: n => `${KAN[n]}子局`,
+      netAway: (n, s) => `${n}さんの接続が切れました。あと${s}秒で戻らなければ、あなたの勝ちです`,
+      netLostWait: s => `接続が切れました。つなぎ直しています…（あと${s}秒で相手が戻らなければ、あなたの勝ちになります）`,
+      netAwayWait: "相手の接続が切れています。戻るまで少し待ってください",
+      netBack: n => `${n}さんが戻ってきました。対局を続けます`, netReconnected: "つなぎ直しました。対局を続けます",
+      discWin: "相手が30秒たっても戻らなかったので、あなたの勝ちです", discLog: c => `${col(c)}の接続切れ（30秒）`,
       agreeBtn: "この結果で同意する", agreeDone: "同意しました（相手を待っています）", agreed: "同意済み", notAgreed: "まだ",
       agreeNote: "2人とも同意すると終局です。死に石を変えると同意は取り消されます。", agreeSent: "同意しました。相手の同意を待っています",
       finalSay: (w, d) => w ? `終局：${col(w)}の${d}目勝ちで確定しました` : "終局：持碁（引き分け）で確定しました",
@@ -515,6 +520,11 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "Irregular S (≈ 7–9)", irrM: "Irregular M (≈ 13)", irrL: "Irregular L (≈ 19)", reroll: "New shape",
       komiL: "Komi", none: "None", optKomi: n => `${n}`,
       hcapL: "Handicap", hcapNone: "None (even)", optHcap: n => pl(n, "stone"),
+      netAway: (n, s) => `${n} lost connection. If they don't return in ${s}s, you win`,
+      netLostWait: s => `Connection lost. Reconnecting… (if your opponent doesn't return in ${s}s, you win)`,
+      netAwayWait: "Your opponent is disconnected. Please wait for them to return",
+      netBack: n => `${n} is back. The game continues`, netReconnected: "Reconnected. The game continues",
+      discWin: "Your opponent didn't return within 30 seconds. You win", discLog: c => `${col(c)} disconnected (30s)`,
       agreeBtn: "Agree to this result", agreeDone: "Agreed (waiting for opponent)", agreed: "agreed", notAgreed: "not yet",
       agreeNote: "The game ends when both players agree. Changing dead stones cancels the agreement.", agreeSent: "You agreed. Waiting for your opponent",
       finalSay: (w, d) => w ? `Game over: ${col(w)} wins by ${d}` : "Game over: jigo (draw)",
@@ -1315,6 +1325,11 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   const online = () => opp === "online";
   const netLive = () => online() && net.state === "connected" && (net.role === "host" ? net.conns.some(x => x.role === "player" && x.c.open) : !!(net.conn && net.conn.open));
   const notMyTurn = () => (opp === "cpu" && S.turn === cpuColor()) || (online() && net.state === "connected" && (net.watch || (net.myColor && S.turn !== net.myColor)));
+  // 同じタブがつなぎ直したときに、同じ対局者だとわかるための合言葉
+  const myToken = (() => { try { let v = sessionStorage.getItem("tgb-token"); if (!v){ v = Math.random().toString(36).slice(2); sessionStorage.setItem("tgb-token", v); } return v; } catch(e){ return Math.random().toString(36).slice(2); } })();
+  // 接続切れ：30秒戻らなければ勝ち
+  const disc = { at: 0, room: "", lastTry: 0 };
+  const gameActive = () => S && (S.mode === "play" || S.mode === "score");
   let myName = store.get("go-name") || ("ゲスト" + Math.floor(100 + Math.random() * 900));
   function loadPeer(){
     if (window.Peer) return Promise.resolve();
@@ -1356,15 +1371,16 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     opp = "online";
     try { await loadPeer(); } catch(e){ return setNet("fail"); }
     net.role = "guest"; net.room = code;
+    try { history.replaceState(null, "", location.pathname + location.search + "#join-" + code); } catch(e){}
     setNet("joining");
     net.peer = new Peer();
     net.peer.on("open", () => {
       const c = net.peer.connect(ROOM_PREFIX + code, { reliable: true });
       net.conn = c;
-      c.on("open", () => { net.seenHost = Date.now(); c.send({ type: "hello", name: myName }); });
+      c.on("open", () => { net.seenHost = Date.now(); c.send({ type: "hello", name: myName, token: myToken }); });
       c.on("data", onGuestData);
-      c.on("close", () => { if (net.conn === c) setNet("lost"); });
-      c.on("error", () => { if (net.conn === c) setNet("lost"); });
+      c.on("close", () => { if (net.conn === c) guestLost(); });
+      c.on("error", () => { if (net.conn === c) guestLost(); });
     });
     net.peer.on("error", e => {
       // 申し込みを受けた直後は、相手の部屋の準備が少し遅れることがあるので、何回か入り直す
@@ -1420,13 +1436,15 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (m.type === "ping") return;
     if (m.type === "bye") return hostLeft(ent);
     if (m.type === "hello"){
-      ent.name = String(m.name || "ゲスト").slice(0, 16);
+      ent.name = String(m.name || "ゲスト").slice(0, 16); ent.token = String(m.token || "");
       const hasPlayer = net.conns.some(x => x !== ent && x.role === "player" && x.c.open);
-      ent.role = hasPlayer ? "watch" : "player";
+      const back = net.state === "away" && ent.token && ent.token === net.playerToken;
+      // 接続が切れた対局者の席は、本人が戻るまで空けておく
+      ent.role = hasPlayer || (net.state === "away" && !back) ? "watch" : "player";
+      if (ent.role === "player"){ net.playerToken = ent.token; disc.at = 0; setNet("connected"); net.last = payloadKey(); }
       makeRoster();
-      if (ent.role === "player"){ setNet("connected"); net.last = payloadKey(); }
       broadcast();
-      say(ent.role === "player" ? "netJoinedPlayer" : "netJoinedWatch", "good", ent.name);
+      say(back ? "netBack" : ent.role === "player" ? "netJoinedPlayer" : "netJoinedWatch", "good", ent.name);
     } else if (m.type === "name"){
       ent.name = String(m.name || "ゲスト").slice(0, 16); makeRoster(); broadcast();
     } else if (ent.role === "player"){
@@ -1441,10 +1459,13 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     try { ent.c.close(); } catch(e){}
     if (ent.role){ say("netLeft", "warn", ent.name); }
     if (ent.role === "player"){
-      // 観戦者がいれば、次の人を対局相手にする
-      const next = net.conns.find(x => x.role === "watch" && x.c.open);
-      if (next){ next.role = "player"; say("netPromoted", "good", next.name); }
-      else setNet("waiting");
+      if (gameActive()){ disc.at = Date.now(); net.awayName = ent.name; setNet("away"); }
+      else {
+        // 対局が終わっていれば、観戦者を次の対局相手にする
+        const next = net.conns.find(x => x.role === "watch" && x.c.open);
+        if (next){ next.role = "player"; net.playerToken = next.token; say("netPromoted", "good", next.name); }
+        else setNet("waiting");
+      }
     }
     makeRoster(); broadcast();
   }
@@ -1452,9 +1473,10 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (!m || !m.type) return;
     net.seenHost = Date.now();
     if (m.type === "ping") return;
-    if (m.type === "bye") return setNet("lost");
+    if (m.type === "bye") return guestLost();
     if (m.type === "setup"){
       const first = net.state !== "connected", wasWatch = net.watch;
+      if (disc.at){ disc.at = 0; say("netReconnected", "good"); }
       net.watch = m.role === "watch"; net.myColor = m.color; net.roster = m.roster || [];
       setNet("connected");
       applyRemote(() => { applySettings(m.settings); restore(m.state); });
@@ -1493,10 +1515,10 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     const now = Date.now();
     if (net.role === "host"){
       net.conns.forEach(x => { if (x.c.open) x.c.send({ type: "ping" }); });
-      net.conns.filter(x => now - x.seen > 25000).forEach(hostLeft);
+      net.conns.filter(x => now - x.seen > 15000).forEach(hostLeft);
     } else if (net.role === "guest" && net.conn && net.conn.open){
       net.conn.send({ type: "ping" });
-      if (net.state === "connected" && now - (net.seenHost || now) > 30000) setNet("lost");
+      if (net.state === "connected" && now - (net.seenHost || now) > 15000) guestLost();
     }
   }, 3000);
   addEventListener("pagehide", () => {
@@ -1505,6 +1527,30 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       else if (net.conn && net.conn.open) net.conn.send({ type: "bye" });
     } catch(e){}
   });
+  function guestLost(){
+    if (gameActive() && !net.watch && net.myColor && !disc.at){ disc.at = Date.now(); disc.room = net.room; disc.color = net.myColor; disc.lastTry = Date.now(); }
+    setNet("lost");
+  }
+  function discWin(){
+    disc.at = 0;
+    if (!gameActive()) return;
+    S.mode = "over"; S.winner = net.myColor || disc.color; S.disc = 1;
+    S.log.unshift([["discLog", 3 - S.winner]]);
+    say("discWin", "good");
+    if (net.role === "host") setNet("lost"); else render();
+    render();
+  }
+  setInterval(() => {
+    if (!disc.at || !online()) return;
+    const now = Date.now();
+    if (now - disc.at > 30000) return discWin();
+    // 自分が切れた側なら、5秒ごとにつなぎ直す
+    if (net.role !== "host" && net.state !== "connected" && net.state !== "joining" && now - disc.lastTry > 5000){
+      disc.lastTry = now; const keep = disc.at, color = disc.color;
+      joinRoom(disc.room, 0).then(() => { if (!disc.at) { disc.at = keep; disc.color = color; } });
+    }
+    netUI();
+  }, 1000);
   function showUndoReq(color){ $("net-req").hidden = false; $("net-req-text").textContent = t("netUndoAsk"); net.pendingUndo = color; }
   function netUndoAccept(){
     $("net-req").hidden = true;
@@ -1522,12 +1568,15 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (!on) return;
     const st = net.state;
     $("net-idle").hidden = !(st === "idle" || st === "lost" || st === "fail" || st === "full");
-    $("net-exit-row").hidden = !((st === "connected" || st === "lost") && (S.mode === "over" || net.watch || st === "lost"));
+    $("net-exit-row").hidden = !((st === "connected" || st === "lost" || st === "away") && (S.mode === "over" || net.watch || (st === "lost" && !disc.at)));
     $("net-invite").hidden = !(net.role === "host" && (st === "waiting" || st === "connected"));
     if (net.role === "host" && net.room) $("net-url").value = location.origin + location.pathname + "#join-" + net.room;
     if (document.activeElement !== $("net-name")) $("net-name").value = myName;
     const key = { starting: "netStarting", waiting: "netWaiting", joining: "netJoining", lost: "netLost", fail: "netFail", full: "netFull" }[st];
     let status = key ? t(key) : "";
+    const remain = disc.at ? Math.max(0, Math.ceil((30000 - (Date.now() - disc.at)) / 1000)) : 0;
+    if (st === "away") status = t("netAway", net.awayName || "", remain);
+    else if (st !== "connected" && disc.at) status = t("netLostWait", remain);
     if (st === "connected") status = net.watch ? t("netWatching") : t("netConnected", net.myColor) + "　" + (S.mode === "play" ? (S.turn === net.myColor ? t("netYourTurn") : t("netWait")) : "");
     $("net-status").textContent = status;
     // 参加者の一覧
@@ -1551,7 +1600,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   // サーバーを使わず、ロビーを開いている誰か1人のページが「受付係」になって名簿を配る。受付係がいなくなったら別の人が引き継ぐ
   const LOBBY_ID = "tgb-lobby-v1";
   const lobby = { peer: null, isHost: false, conn: null, clients: new Map(), list: [], myId: "", out: null, inc: null, seen: 0, status: "", state: "off", retry: null };
-  const myStatus = () => net.state === "connected" ? "playing" : "free";
+  const myStatus = () => (net.state === "connected" || net.state === "away" || disc.at) ? "playing" : "free";
   function lobbyStart(){
     if (lobby.peer || lobby.state === "starting") return;
     lobby.state = "starting"; lobby.startAt = Date.now(); lobbyUI();
@@ -1662,7 +1711,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
   function lobbyMsg(m){
     if (m.type === "ch"){
-      if (lobby.inc || lobby.out || net.state === "connected") return lobbySend({ type: "chAns", to: m.from, ok: false, busy: true });
+      if (lobby.inc || lobby.out || myStatus() === "playing") return lobbySend({ type: "chAns", to: m.from, ok: false, busy: true });
       lobby.inc = { from: m.from, name: String(m.name || m.fromName || "ゲスト").slice(0, 16), info: String(m.info || "").slice(0, 80), room: m.room, color: m.color };
       say("chIncoming", "good", lobby.inc.name);
       lobbyUI();
@@ -2538,6 +2587,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     const p = pointFromEvent(e); if (p < 0) return;
     if (S.mode === "over") return say("overClick");
     if (online() && net.watch && net.state === "connected") return say("netWatching");
+    if (online() && (net.state === "away" || disc.at)) return say("netAwayWait", "warn");
     if (S.mode === "play" && online() && !netLive()) return play(p);
     if (S.mode === "play" && (thinking || notMyTurn())) return say(online() ? "netWait" : "cpuWait", "think");
     if (S.mode === "score") toggleDead(p); else if (S.mode === "setup") toggleSetup(p); else play(p);

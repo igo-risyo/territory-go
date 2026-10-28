@@ -75,6 +75,8 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation;cursor:poi
 .toast.think::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:dots 1.2s steps(4) infinite}
 @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
 .btn:disabled{opacity:.5;cursor:default}
+.btn.resign{color:var(--warn)}
+.btn.resign.confirm{background:var(--warn);border-color:var(--warn);color:#fff;font-weight:700}
 .net{display:flex;flex-direction:column;gap:8px}
 .net input[type=text]{flex:1 1 180px;min-width:0;font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 .net-status{font-size:13.5px;font-weight:700}
@@ -335,7 +337,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
           <button class="btn" id="b-pass" type="button" data-i="pass">パス</button>
           <button class="btn" id="b-undo" type="button" data-i="undo">待った</button>
           <button class="btn" id="b-hint" type="button" data-i="hint">ヒント</button>
-          <button class="btn primary" id="b-score" type="button">終局して数える</button>
+          <button class="btn resign" id="b-resign" type="button" data-i="resign">投了</button>
+          <button class="btn primary" id="b-score" type="button" style="grid-column:1/-1">終局して数える</button>
         </div>
         <div class="row">
           <label for="sel-size" data-i="boardL">盤</label>
@@ -403,6 +406,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       finalSay: (w, d) => w ? `終局：${col(w)}の${d}目勝ちで確定しました` : "終局：持碁（引き分け）で確定しました",
       finalLog: (w, d) => w ? `終局（${col(w)}の${d}目勝ち）` : "終局（持碁）", finalDone: "お互いが同意し、終局しました",
       netExit: "退室する", netExitNote: "対局が終わりました。退室すると一覧に戻ります。", netExited: "退室しました",
+      resign: "投了", resignConfirm: "もう一度押すと投了", resignLog: c => `${col(c)}の投了`, resignSay: c => `${col(c)}が投了しました。${col(3 - c)}の勝ちです`,
       timeL: "持ち時間", tMove: n => `1手${n}秒`, tSudden: "3分切れ負け",
       timeLoss: c => `${col(c)}の時間切れ。${col(3 - c)}の勝ちです`, timeLog: c => `${col(c)}の時間切れ`,
       lobbyTitle: "オンラインの人", lobbyStarting: "接続しています…", lobbyFail: "接続できませんでした",
@@ -530,6 +534,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       finalSay: (w, d) => w ? `Game over: ${col(w)} wins by ${d}` : "Game over: jigo (draw)",
       finalLog: (w, d) => w ? `Game over (${col(w)} +${d})` : "Game over (jigo)", finalDone: "Both players agreed. The game is over",
       netExit: "Leave room", netExitNote: "The game is over. Leave to return to the player list.", netExited: "You left the room",
+      resign: "Resign", resignConfirm: "Tap again to resign", resignLog: c => `${col(c)} resigned`, resignSay: c => `${col(c)} resigned. ${col(3 - c)} wins`,
       timeL: "Time", tMove: n => `${n}s per move`, tSudden: "3 min sudden death",
       timeLoss: c => `${col(c)} ran out of time. ${col(3 - c)} wins`, timeLog: c => `${col(c)} lost on time`,
       lobbyTitle: "Players online", lobbyStarting: "Connecting…", lobbyFail: "Couldn't connect",
@@ -1316,6 +1321,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   function updateButtons(){
     ["b-pass", "b-undo", "b-hint"].forEach(id => { if (thinking) $(id).disabled = true; });
     if (!thinking){ $("b-hint").disabled = S.mode !== "play"; $("b-undo").disabled = S.mode === "setup"; $("b-pass").disabled = S.mode !== "play"; }
+    $("b-resign").disabled = !(S.mode === "play" || S.mode === "score") || (opp === "cpu" && thinking);
   }
 
   /* ---------- オンライン対局（PeerJS・試験版） ---------- */
@@ -1395,7 +1401,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       last: S.last, passes: S.passes, mode: S.mode, winner: S.winner || 0, dead: [...S.dead], seki: [...(S.seki || [])], safe: [...(S.safe || [])],
       history: S.history.map(h => ({ ...h, board: Array.from(h.board) })), log: S.log,
       clock: S.clock ? { kind: S.clock.kind, per: S.clock.per, rem: S.clock.rem, elapsed: S.mode === "play" ? Date.now() - S.clock.turnStart : 0 } : null, tl: S.timeLoss || 0,
-      agree: S.agree || [0, 0, 0], result: S.result || null };
+      agree: S.agree || [0, 0, 0], result: S.result || null, resigned: S.resigned || 0 };
   }
   function restore(x){
     S = newState(x.size, x.mask ? Uint8Array.from(x.mask) : null);
@@ -1403,7 +1409,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     S.mode = x.mode; S.winner = x.winner; S.dead = new Set(x.dead); S.seki = new Set(x.seki); S.safe = new Set(x.safe);
     S.history = x.history.map(h => ({ ...h, board: Int8Array.from(h.board) })); S.log = x.log;
     if (x.clock) S.clock = { kind: x.clock.kind, per: x.clock.per, rem: x.clock.rem.slice(), turnStart: Date.now() - (x.clock.elapsed || 0) };
-    S.timeLoss = x.tl || 0; S.agree = x.agree || [0, 0, 0]; S.result = x.result || null;
+    S.timeLoss = x.tl || 0; S.agree = x.agree || [0, 0, 0]; S.result = x.result || null; S.resigned = x.resigned || 0;
     if (S.mode === "score" && S.agree[1] && S.agree[2] && !S.result) finalizeScore();
   }
   function settingsNow(){
@@ -1501,12 +1507,13 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
   function applyRemote(fn){
     net.applying = true;
-    const prevLen = S.history.length, wasScore = S.mode === "score";
+    const prevLen = S.history.length, wasScore = S.mode === "score", wasPlay = S.mode === "play" || S.mode === "score";
     fn();
     net.last = payloadKey();
     render();
     net.applying = false;
     if (!net.watch && S.mode === "play" && S.turn === net.myColor && S.history.length > prevLen && S.last >= 0) say("netOppMoved", "good", coord(S.last));
+    if (wasPlay && S.mode === "over" && S.resigned && !S.result) say("resignSay", "warn", S.resigned);
     if (wasScore && S.mode === "over" && S.result){ const d = Math.abs(S.result.sb - S.result.sw); say("finalSay", "good", S.winner, d); }
   }
   // 生存確認：3秒ごとに合図を送り、25秒以上届かなければ退室とみなす
@@ -1556,7 +1563,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     $("net-req").hidden = true;
     const who = net.pendingUndo; net.pendingUndo = 0;
     if (!who || !S.history.length) return;
-    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; S.result = null; }
+    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; S.result = null; S.resigned = 0; }
     let h = S.history.pop(); Object.assign(S, h);
     while (S.turn !== who && S.history.length){ h = S.history.pop(); Object.assign(S, h); }
     S.hint = -1; if (S.clock) S.clock.turnStart = Date.now(); say("undone"); render();
@@ -1593,7 +1600,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     const lock = net.role === "guest" && st === "connected";
     ["sel-size", "sel-komi", "sel-time", "sel-hcap", "sel-target", "b-new", "b-reroll"].forEach(id => { $(id).disabled = lock || (id === "sel-hcap" && on); });
     document.querySelectorAll("[data-type], #rules input").forEach(el => el.disabled = lock);
-    ["b-pass", "b-undo", "b-hint", "b-score"].forEach(id => { if (net.watch && st === "connected") $(id).disabled = true; });
+    ["b-pass", "b-undo", "b-hint", "b-score", "b-resign"].forEach(id => { if (net.watch && st === "connected") $(id).disabled = true; });
   }
 
   /* ---------- オンラインの人（ロビー） ---------- */
@@ -1868,7 +1875,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   function undo(){
     if (S.mode === "setup") return;
     if (S.mode === "score") return exitScoring();
-    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; S.result = null; }
+    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; S.result = null; S.resigned = 0; }
     if (thinking) return;
     let h = S.history.pop(); if (!h) return say("noUndo", "warn");
     Object.assign(S, h);
@@ -2596,6 +2603,25 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   document.querySelectorAll("[data-piece]").forEach(b => b.addEventListener("click", () => { pieces = b.dataset.piece; store.set("go-pieces", pieces); render(); }));
   $("b-pass").addEventListener("click", () => { if (!thinking && !(netLive() || opp === "cpu" ? notMyTurn() : false)) pass(); });
   $("b-hint").addEventListener("click", hint);
+  // 投了：押し間違いを防ぐため、2回押しで確定
+  let resignArm = 0;
+  $("b-resign").addEventListener("click", () => {
+    if (!(S.mode === "play" || S.mode === "score")) return;
+    if (online() && (net.watch || !net.myColor || net.state !== "connected")) return;
+    const b = $("b-resign");
+    if (Date.now() > resignArm){
+      resignArm = Date.now() + 4000; b.classList.add("confirm"); b.textContent = t("resignConfirm");
+      setTimeout(() => { if (Date.now() > resignArm){ b.classList.remove("confirm"); b.textContent = t("resign"); } }, 4100);
+      return;
+    }
+    resignArm = 0; b.classList.remove("confirm"); b.textContent = t("resign");
+    const who = online() ? net.myColor : opp === "cpu" ? 3 - cpuColor() : S.turn;
+    pushHistory();
+    S.mode = "over"; S.winner = 3 - who; S.resigned = who; S.result = null;
+    S.log.unshift([["resignLog", who]]);
+    say("resignSay", "warn", who);
+    render();
+  });
   document.querySelectorAll("[data-opp]").forEach(b => b.addEventListener("click", () => {
     if (opp === b.dataset.opp) return;
     if (online()){ netReset(); lobbyStop(); }

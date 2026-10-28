@@ -45,7 +45,9 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
 h1{font-family:var(--f-display);font-weight:800;font-size:clamp(26px,4vw,36px);margin:0;letter-spacing:.04em;text-wrap:balance}
 header p{margin:0;color:var(--muted);max-width:60ch;flex:1 1 320px}
-.seg.lang{grid-template-columns:repeat(2,auto);margin-left:auto;align-self:center}
+.head-actions{display:flex;align-items:center;gap:10px;margin-left:auto;align-self:center}
+.head-actions .btn{padding:7px 16px}
+.seg.lang{grid-template-columns:repeat(2,auto)}
 .seg.lang button{padding:5px 12px}
 .app{display:grid;grid-template-columns:minmax(0,620px) minmax(0,380px);gap:24px;justify-content:center;align-items:start}
 @media (max-width:920px){.app{grid-template-columns:minmax(0,1fr)}}
@@ -56,6 +58,9 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation;cursor:poi
 .toast{min-height:1.6em;font-size:14px;color:var(--muted)}
 .toast.warn{color:var(--warn);font-weight:500}
 .toast.good{color:var(--accent);font-weight:500}
+.toast.think::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:dots 1.2s steps(4) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+.btn:disabled{opacity:.5;cursor:default}
 .basics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 @media (max-width:560px){.basics{grid-template-columns:minmax(0,1fr)}}
 .basics div{border-top:2px solid var(--ink);padding-top:8px;min-width:0}
@@ -131,9 +136,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   <header>
     <h1 data-i="title">陣地が見える碁盤</h1>
     <p data-i="lead">石で囲んだ交点が自分の陣地。最後に陣地が広い方が勝ち。打つたびに、どちらの陣地になりそうかを色で表示します。</p>
+    <div class="head-actions">
+    <button class="btn primary" id="b-new" type="button" data-i="newGame">新しい対局</button>
     <div class="seg lang" role="group" aria-label="Language / 言語">
       <button type="button" data-lang="ja" aria-pressed="true" lang="ja">日本語</button>
       <button type="button" data-lang="en" aria-pressed="false" lang="en">English</button>
+    </div>
     </div>
   </header>
 
@@ -166,6 +174,21 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
           <div class="win" id="win" hidden></div>
         </div>
         <div class="sub" id="type-note"></div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-opp">
+        <h2 id="h-opp" data-i="hOpp">対戦相手</h2>
+        <div class="seg" role="group" data-ia="hOpp" aria-label="対戦相手" style="grid-template-columns:repeat(2,1fr)">
+          <button type="button" data-opp="human" aria-pressed="true" data-i="oppHuman">2人で対局</button>
+          <button type="button" data-opp="cpu" aria-pressed="false" data-i="oppCpu">コンピューター</button>
+        </div>
+        <div class="row" id="cpu-opts" hidden>
+          <label for="sel-cpu-color" data-i="cpuColorL">コンピューターの色</label>
+          <select id="sel-cpu-color"><option value="2" data-i="white">白</option><option value="1" data-i="black">黒</option></select>
+          <label for="sel-cpu-level" data-i="cpuLevelL">強さ</label>
+          <select id="sel-cpu-level"><option value="0" data-i="lv0">入門</option><option value="1" data-i="lv1">初級</option><option value="2" data-i="lv2">中級</option><option value="3" data-i="lv3">上級</option></select>
+        </div>
+        <div class="sub" id="cpu-note" hidden></div>
       </section>
 
       <section class="sec" aria-labelledby="h-state">
@@ -225,15 +248,15 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
         <div class="btns">
           <button class="btn" id="b-pass" type="button" data-i="pass">パス</button>
           <button class="btn" id="b-undo" type="button" data-i="undo">待った</button>
+          <button class="btn" id="b-hint" type="button" data-i="hint">ヒント</button>
           <button class="btn primary" id="b-score" type="button">終局して数える</button>
-          <button class="btn" id="b-new" type="button" data-i="newGame">新しい対局</button>
         </div>
         <div class="row">
           <label for="sel-size" data-i="boardL">盤</label>
           <select id="sel-size"><option value="7" data-i="optSize" data-n="7">7路</option><option value="9" selected data-i="optSize" data-n="9">9路</option><option value="13" data-i="optSize" data-n="13">13路</option><option value="19" data-i="optSize" data-n="19">19路</option><optgroup data-il="irrGroup" label="変則碁盤（ランダムな形）"><option value="rs" data-i="irrS">変則・小（7〜9路くらい）</option><option value="rm" data-i="irrM">変則・中（13路くらい）</option><option value="rl" data-i="irrL">変則・大（19路くらい）</option></optgroup></select>
           <button class="btn small" id="b-reroll" type="button" hidden data-i="reroll">別の形にする</button>
           <label for="sel-komi" data-i="komiL">コミ</label>
-          <select id="sel-komi"><option value="0" data-i="none">なし</option><option value="0.5" data-i="optKomi" data-n="0.5">0.5目</option><option value="5.5" data-i="optKomi" data-n="5.5">5.5目</option><option value="6.5" selected data-i="optKomi" data-n="6.5">6.5目</option></select>
+          <select id="sel-komi"><option value="0" data-i="none">なし</option><option value="0.5" data-i="optKomi" data-n="0.5">0.5目</option><option value="5.5" selected data-i="optKomi" data-n="5.5">5.5目</option><option value="6.5" data-i="optKomi" data-n="6.5">6.5目</option></select>
           <label for="sel-hcap" data-i="hcapL">置き石</label>
           <select id="sel-hcap"><option value="0" data-i="hcapNone">なし（互先）</option><option value="2" data-i="optHcap" data-n="2">二子局</option><option value="3" data-i="optHcap" data-n="3">三子局</option><option value="4" data-i="optHcap" data-n="4">四子局</option><option value="5" data-i="optHcap" data-n="5">五子局</option><option value="6" data-i="optHcap" data-n="6">六子局</option><option value="7" data-i="optHcap" data-n="7">七子局</option><option value="8" data-i="optHcap" data-n="8">八子局</option><option value="9" data-i="optHcap" data-n="9">九子局</option></select>
         </div>
@@ -282,15 +305,21 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "変則・小（7〜9路くらい）", irrM: "変則・中（13路くらい）", irrL: "変則・大（19路くらい）", reroll: "別の形にする",
       komiL: "コミ", none: "なし", optKomi: n => `${n}目`,
       hcapL: "置き石", hcapNone: "なし（互先）", optHcap: n => `${KAN[n]}子局`,
+      hOpp: "対戦相手", oppHuman: "2人で対局", oppCpu: "コンピューター", cpuColorL: "コンピューターの色", cpuLevelL: "強さ",
+      lv0: "入門", lv1: "初級", lv2: "中級", lv3: "上級", hint: "ヒント",
+      cpuNote: "特殊ルール・変則碁盤・石取りにも対応。考える時間は 入門0.3秒・初級1秒・中級2秒・上級3秒（上級は複数のCPUで同時に読みます）。小さい盤ほど強くなります。「待った」はあなたの手番まで戻します。",
+      cpuThinking: "コンピューターが考えています", cpuWait: "コンピューターの番です。少し待ってください",
+      hintThinking: "おすすめの手を考えています", hintSay: (pt, p) => `おすすめは ${pt}（点線の所）。この手の勝率の目安 ${p}%`,
+      hintPass: "打つ所がなさそうです。パスもおすすめです。",
       ruleFlipName: n => `${n}子はさむと裏返る（＋オセロルール）`,
-      ruleFlipDesc: n => `打った石と自分の石で、相手の石を縦・横・斜めの一直線に${n}子以上はさむと、はさんだ石が自分の色に変わります。相手の石の間に自分から打ち込んでも、自分の石は裏返りません。裏返した石は取った石（アゲハマ）には数えません。`,
+      ruleFlipDesc: n => `打った石と自分の石で、相手の石を縦・横・斜めの一直線にちょうど${n}子はさむと、はさんだ石が自分の色に変わります（${n}子より多くても少なくても裏返りません）。相手の石の間に自分から打ち込んでも、自分の石は裏返りません。裏返した石は取った石（アゲハマ）には数えません。`,
       paramFlip: "はさむ石の数", flipLog: n => `${n}子裏返し`,
       flipSay: (c, n, k) => `${col(c)}が${n}子を裏返しました！${k ? `さらに${k}子取りました。` : ""}`,
       demoFlipLog: "例題：オセロ挟み",
       demoFlipSay: n => `黒番。点線の所に打つと、白${n}子を黒ではさめます。ルールONなら全部黒に裏返ります。`,
       demo: "例題で試す", paramN: "必要な石の数", logEmpty: "まだ着手はありません",
       ruleChainName: n => `${n}子つながれば眼なしで生き`,
-      ruleChainDesc: n => `縦横に${n}個以上つながった石は、呼吸点がなくなっても取り上げられず、整地でも死に石にできません。金色の輪が目印。`,
+      ruleChainDesc: n => `縦横に${n}個以上つながった石は、呼吸点がなくなっても取り上げられず、整地でも死に石にできません。黒は金色、白は銀色の輪が目印。`,
       ruleBentName: "隅の曲がり四目は両方生き",
       ruleBentDesc: "終局時、眼が隅のL字型4目（隅が曲がり角）だけの石と、その中にある相手の石を、両方とも生きとして扱います。セキと同じく、その4目はどちらの地にもなりません。死に石の指定もできません。※盤上の形からの簡易判定。",
       ranks: { soldier: ["兵士","騎士","将軍"], castle: ["砦","お城","天守閣"] },
@@ -368,15 +397,21 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "Irregular S (≈ 7–9)", irrM: "Irregular M (≈ 13)", irrL: "Irregular L (≈ 19)", reroll: "New shape",
       komiL: "Komi", none: "None", optKomi: n => `${n}`,
       hcapL: "Handicap", hcapNone: "None (even)", optHcap: n => pl(n, "stone"),
+      hOpp: "Opponent", oppHuman: "Two players", oppCpu: "Computer", cpuColorL: "Computer plays", cpuLevelL: "Level",
+      lv0: "Beginner", lv1: "Easy", lv2: "Medium", lv3: "Hard", hint: "Hint",
+      cpuNote: "Works with special rules, irregular boards and Capture Go. Thinking time: Beginner 0.3s, Easy 1s, Medium 2s, Hard 3s (Hard reads on several CPU cores at once). It plays stronger on smaller boards. Undo goes back to your turn.",
+      cpuThinking: "The computer is thinking", cpuWait: "It's the computer's turn. Please wait",
+      hintThinking: "Looking for a good move", hintSay: (pt, p) => `Try ${pt} (dotted circle). Estimated win rate ${p}%`,
+      hintPass: "No useful move found. Passing is fine here.",
       ruleFlipName: n => `Sandwich ${n} to flip (+ Othello rule)`,
-      ruleFlipDesc: n => `Play so that ${n} or more opponent stones lie in a straight line (vertical, horizontal or diagonal) between your new stone and another of yours, and they flip to your color. Playing into a gap between opponent stones never flips your own stone. Flipped stones don't count as captures.`,
+      ruleFlipDesc: n => `Play so that exactly ${n} opponent stones lie in a straight line (vertical, horizontal or diagonal) between your new stone and another of yours, and they flip to your color (more or fewer than ${n} won't flip). Playing into a gap between opponent stones never flips your own stone. Flipped stones don't count as captures.`,
       paramFlip: "Stones to sandwich", flipLog: n => `flipped ${n}`,
       flipSay: (c, n, k) => `${col(c)} flipped ${pl(n, "stone")}!${k ? ` Then captured ${k}.` : ""}`,
       demoFlipLog: "Example: Othello flip",
       demoFlipSay: n => `Black to play. Playing at the dotted point sandwiches ${n} white stones. With the rule ON, they all flip to black.`,
       demo: "Try an example", paramN: "Stones needed", logEmpty: "No moves yet",
       ruleChainName: n => `${n} connected stones live without eyes`,
-      ruleChainDesc: n => `A group of ${n} or more stones connected vertically or horizontally can't be captured even with no liberties, and can't be marked dead when counting. Marked with a gold ring.`,
+      ruleChainDesc: n => `A group of ${n} or more stones connected vertically or horizontally can't be captured even with no liberties, and can't be marked dead when counting. Black's are marked with a gold ring, White's with a silver one.`,
       ruleBentName: "Bent four in the corner: both live",
       ruleBentDesc: "At the end, a group whose only eye space is an L-shaped 4 points in the corner (bend at the corner), and any opponent stones inside it, are both treated as alive. Like seki, those 4 points count for no one, and the stones can't be marked dead. (Simplified shape check.)",
       ranks: { soldier: ["Soldier","Knight","General"], castle: ["Fort","Castle","Keep"] },
@@ -520,7 +555,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (S.board[i]) return say("occupied", "warn");
     const nb = S.board.slice(), me = S.turn, opp = 3 - me;
     nb[i] = me;
-    // オセロ挟み：打った石と自分の石で、相手の石を一直線にN子以上はさむと裏返る
+    // オセロ挟み：打った石と自分の石で、相手の石を一直線にちょうどN子はさむと裏返る
     const flipRule = RULES.find(r => r.id === "flip");
     let flipped = 0;
     if (flipRule.on){
@@ -528,7 +563,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
         const line = []; let x = x0 + dx, y = y0 + dy;
         while (x >= 0 && y >= 0 && x < n && y < n && nb[y*n + x] === opp){ line.push(y*n + x); x += dx; y += dy; }
-        if (line.length >= flipRule.n && x >= 0 && y >= 0 && x < n && y < n && nb[y*n + x] === me){
+        if (line.length === flipRule.n && x >= 0 && y >= 0 && x < n && y < n && nb[y*n + x] === me){
           line.forEach(p => nb[p] = me); flipped += line.length;
         }
       }
@@ -676,6 +711,453 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
   function clearBlack(){ for (let i = 0; i < S.board.length; i++) if (S.board[i] === 1) S.board[i] = 0; }
 
+  /* ---------- コンピューター（モンテカルロ＋AMAF） ---------- */
+  function ENGINE(scope){
+    let N = 0, A = 0, NB, DG, mark, lmark, cmark, gbuf, stk, flipBuf, gen = 1, lgen = 1, cgen = 1;
+    let chainN = 0, flipN = 0;
+    const D8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+    const G = { libs: 0, lib: -1, size: 0 };
+    let cap = 0, capPos = -1;
+
+    function init(n){
+      if (n === N) return;
+      N = n; A = n * n;
+      NB = new Int32Array(A * 4).fill(-1); DG = new Int32Array(A * 4).fill(-1);
+      for (let p = 0; p < A; p++){
+        const x = p % n, y = (p - x) / n; let k = 0;
+        if (x > 0) NB[p*4 + k++] = p - 1;
+        if (x < n-1) NB[p*4 + k++] = p + 1;
+        if (y > 0) NB[p*4 + k++] = p - n;
+        if (y < n-1) NB[p*4 + k++] = p + n;
+        k = 0;
+        for (const [dx, dy] of [[1,1],[1,-1],[-1,1],[-1,-1]]){
+          const a = x + dx, b = y + dy;
+          if (a >= 0 && b >= 0 && a < n && b < n) DG[p*4 + k++] = b*n + a;
+        }
+      }
+      mark = new Int32Array(A); lmark = new Int32Array(A); cmark = new Int32Array(A);
+      gbuf = new Int32Array(A); stk = new Int32Array(A); flipBuf = new Int32Array(A);
+    }
+
+    function group(b, p){
+      const c = b[p]; gen++; lgen++;
+      let sp = 0, sz = 0, libs = 0, lib = -1;
+      stk[sp++] = p; mark[p] = gen;
+      while (sp){
+        const q = stk[--sp]; gbuf[sz++] = q;
+        for (let k = 0; k < 4; k++){
+          const r = NB[q*4 + k]; if (r < 0) break;
+          const v = b[r];
+          if (v === 0){ if (lmark[r] !== lgen){ lmark[r] = lgen; libs++; lib = r; } }
+          else if (v === c && mark[r] !== gen){ mark[r] = gen; stk[sp++] = r; }
+        }
+      }
+      G.libs = libs; G.lib = lib; G.size = sz;
+      return sz;
+    }
+    const immortal = sz => chainN > 0 && sz >= chainN;
+
+    function tryCap(b, q, o){
+      if (b[q] !== o || cmark[q] === cgen) return;
+      group(b, q);
+      for (let j = 0; j < G.size; j++) cmark[gbuf[j]] = cgen;
+      if (G.libs === 0 && !immortal(G.size)){
+        for (let j = 0; j < G.size; j++) b[gbuf[j]] = 0;
+        cap += G.size; capPos = q;
+      }
+    }
+
+    function apply(b, p, c, st){
+      const o = 3 - c; b[p] = c; let nf = 0;
+      if (flipN){
+        const x0 = p % N, y0 = (p - x0) / N;
+        for (let d = 0; d < 8; d++){
+          const dx = D8[d][0], dy = D8[d][1];
+          let x = x0 + dx, y = y0 + dy, cnt = 0;
+          while (x >= 0 && y >= 0 && x < N && y < N && b[y*N + x] === o){ cnt++; x += dx; y += dy; }
+          if (cnt === flipN && x >= 0 && y >= 0 && x < N && y < N && b[y*N + x] === c){
+            let a = x0 + dx, e = y0 + dy;
+            for (let j = 0; j < cnt; j++){ const q = e*N + a; b[q] = c; flipBuf[nf++] = q; a += dx; e += dy; }
+          }
+        }
+      }
+      cgen++; cap = 0; capPos = -1;
+      for (let k = 0; k < 4; k++){ const r = NB[p*4 + k]; if (r < 0) break; tryCap(b, r, o); }
+      for (let j = 0; j < nf; j++){
+        const f = flipBuf[j];
+        for (let k = 0; k < 4; k++){ const r = NB[f*4 + k]; if (r < 0) break; tryCap(b, r, o); }
+      }
+      group(b, p);
+      if (G.libs === 0 && !immortal(G.size)) return false;
+      st.ko = (cap === 1 && G.size === 1 && G.libs === 1) ? capPos : -1;
+      st.caps[c] += cap; st.last = p;
+      return true;
+    }
+
+    function play(b, p, c, st){
+      if (b[p] !== 0 || p === st.ko) return false;
+      let open = false;
+      for (let k = 0; k < 4; k++){ const r = NB[p*4 + k]; if (r < 0) break; if (b[r] === 0){ open = true; break; } }
+      if (!open){
+        const t = b.slice(), s2 = { ko: -1, caps: [0,0,0] };
+        if (!apply(t, p, c, s2)) return false;
+      }
+      return apply(b, p, c, st);
+    }
+
+    function isEye(b, p, c){
+      let edge = false;
+      for (let k = 0; k < 4; k++){
+        const r = NB[p*4 + k];
+        if (r < 0){ edge = true; break; }
+        const v = b[r];
+        if (v === 3){ edge = true; continue; }
+        if (v !== c) return false;
+      }
+      let bad = 0, nd = 0;
+      for (let k = 0; k < 4; k++){
+        const r = DG[p*4 + k]; if (r < 0) break; nd++;
+        const v = b[r];
+        if (v === 3) edge = true; else if (v === 3 - c) bad++;
+      }
+      if (nd < 4) edge = true;
+      return edge ? bad === 0 : bad < 2;
+    }
+
+    function areaScore(b, komi){
+      let s = 0;
+      for (let p = 0; p < A; p++){
+        const v = b[p];
+        if (v === 1) s++;
+        else if (v === 2) s--;
+        else if (v === 0){
+          let bl = 0, wh = 0;
+          for (let k = 0; k < 4; k++){ const r = NB[p*4 + k]; if (r < 0) break; if (b[r] === 1) bl = 1; else if (b[r] === 2) wh = 1; }
+          if (bl && !wh) s++; else if (wh && !bl) s--;
+        }
+      }
+      return s - komi;
+    }
+
+    // 1回分のランダム対局。勝った色を返す
+    function playout(b, st, color, amaf, P){
+      let passes = 0, moves = 0, last = st.last ?? -1;
+      const maxM = A * 2;
+      while (moves < maxM){
+        let ok = false, mv = -1;
+        if (last >= 0 && b[last]){
+          const o = 3 - color;
+          // 直前の手の周りで、取れる石を取る・アタリを逃げる
+          for (let k = -1; k < 4 && !ok; k++){
+            const q = k < 0 ? last : NB[last*4 + k];
+            if (q < 0) break;
+            if (b[q] === o){
+              group(b, q);
+              if (G.libs === 1 && !immortal(G.size) && Math.random() < 0.9){
+                mv = G.lib; ok = play(b, mv, color, st);
+              }
+            } else if (b[q] === color){
+              group(b, q);
+              if (G.libs === 1 && !immortal(G.size) && Math.random() < 0.7){
+                mv = G.lib; ok = play(b, mv, color, st);
+              }
+            }
+          }
+        }
+        if (!ok && P.local && last >= 0 && Math.random() < 0.6){
+          // 直前の手の近く（周囲8点）に応じる
+          const r0 = (Math.random() * 8) | 0;
+          for (let k = 0; k < 8 && !ok; k++){
+            const j = (r0 + k) & 7, q = j < 4 ? NB[last*4 + j] : DG[last*4 + j - 4];
+            if (q < 0 || b[q] !== 0 || q === st.ko || isEye(b, q, color)) continue;
+            if (play(b, q, color, st)){ mv = q; ok = true; }
+          }
+        }
+        if (!ok){
+          const start = (Math.random() * A) | 0;
+          for (let i = 0; i < A; i++){
+            const p = (start + i) % A;
+            if (b[p] !== 0 || p === st.ko || isEye(b, p, color)) continue;
+            if (play(b, p, color, st)){ mv = p; ok = true; break; }
+          }
+        }
+        if (ok){
+          if (amaf && amaf[mv] === 0) amaf[mv] = color;
+          passes = 0; last = mv;
+          if (P.capture && st.caps[color] >= P.target) return color;
+        } else {
+          passes++; last = -1; st.ko = -1;
+          if (passes >= 2) break;
+        }
+        color = 3 - color; moves++;
+      }
+      return areaScore(b, P.komi) > 0 ? 1 : 2;
+    }
+
+    // 自分だけで囲んだ小さな地（打っても損になる所）
+    function ownSmallRegions(b, c){
+      const out = new Uint8Array(A), seen = new Uint8Array(A), lim = Math.min(30, Math.floor(A / 4));
+      const reg = [];
+      for (let p = 0; p < A; p++){
+        if (b[p] !== 0 || seen[p]) continue;
+        reg.length = 0; let mine = false, theirs = false;
+        const st = [p]; seen[p] = 1;
+        while (st.length){
+          const q = st.pop(); reg.push(q);
+          for (let k = 0; k < 4; k++){
+            const r = NB[q*4 + k]; if (r < 0) break;
+            const v = b[r];
+            if (v === 0){ if (!seen[r]){ seen[r] = 1; st.push(r); } }
+            else if (v === c) mine = true; else if (v === 3 - c) theirs = true;
+          }
+        }
+        if (mine && !theirs && reg.length <= lim) reg.forEach(q => out[q] = 1);
+      }
+      return out;
+    }
+
+    function think(P){
+      init(P.size); chainN = P.chainN; flipN = P.flipN;
+      const b0 = Int8Array.from(P.board), me = P.color, opp = 3 - me;
+      const prev = P.prev ? Int8Array.from(P.prev) : null;
+      let stones = 0;
+      for (let p = 0; p < A; p++) if (b0[p] === 1 || b0[p] === 2) stones++;
+      const big = A >= 121, own = ownSmallRegions(b0, me);
+      const near = new Uint8Array(A);
+      if (big){
+        for (let p = 0; p < A; p++){
+          if (b0[p] !== 1 && b0[p] !== 2) continue;
+          const x = p % N, y = (p - x) / N;
+          for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++){
+            const a = x + dx, e = y + dy;
+            if (a >= 0 && e >= 0 && a < N && e < N) near[e*N + a] = 1;
+          }
+        }
+        if (stones < 6){
+          const lines = [2, 3, N - 4, N - 3];
+          for (const a of lines) for (const e of lines) near[e*N + a] = 1;
+        }
+      }
+      // 打てる手を全部試して候補にする
+      const cand = [];
+      for (let p = 0; p < A; p++){
+        if (b0[p] !== 0 || own[p] || isEye(b0, p, me)) continue;
+        if (big && !near[p]) continue;
+        const b = b0.slice(), st = { ko: -1, caps: P.caps.slice(), last: -1 };
+        const before = st.caps[me];
+        if (!play(b, p, me, st)) continue;
+        if (prev && b.every((v, k) => v === prev[k])) continue;
+        const c = { p, b, st, n: 0, w: 0, an: 0, aw: 0 };
+        const took = st.caps[me] - before;
+        if (P.capture && st.caps[me] >= P.target) return { moves: [p], winrate: 1, playouts: 0 };
+        // 事前知識：取る手・逃げる手は良く、自分からアタリになる手は悪い
+        group(b, p);
+        const selfAtari = G.libs === 1 && G.size >= 2 && !immortal(G.size);
+        let saves = false;
+        for (let k = 0; k < 4; k++){
+          const r = NB[p*4 + k]; if (r < 0) break;
+          if (b0[r] === me){ group(b0, r); if (G.libs === 1){ saves = true; break; } }
+        }
+        if (took){ c.n += 6; c.w += 4.5; }
+        // オセロ挟みで裏返せる手は大きく評価する
+        if (flipN){
+          let fl = 0;
+          for (let q = 0; q < A; q++) if (b0[q] === opp && b[q] === me) fl++;
+          if (fl){ const k = 8 + 4 * fl; c.n += k; c.w += k * 0.9; c.flip = fl; }
+        }
+        if (saves && !selfAtari){ c.n += 6; c.w += 4.5; }
+        if (selfAtari){ c.n += 6; c.w += 1; }
+        // 序盤は1線・2線を避け、3線・4線を好む
+        if (!took && !saves){
+          const x = p % N, y = (p - x) / N, line = Math.min(x, y, N - 1 - x, N - 1 - y);
+          const early = stones < A / 5;
+          if (line === 0){ c.n += 10; c.w += 2; }
+          else if (line === 1 && early && N >= 9){ c.n += 8; c.w += 2.5; }
+          else if ((line === 2 || line === 3) && early && N >= 9){ c.n += 6; c.w += 4; }
+        }
+        cand.push(c);
+      }
+      if (!cand.length) return { pass: true, moves: [], winrate: 0, playouts: 0 };
+      for (let i = cand.length - 1; i > 0; i--){ const j = (Math.random() * (i + 1)) | 0; [cand[i], cand[j]] = [cand[j], cand[i]]; }
+
+      const amaf = new Int8Array(A), t0 = Date.now();
+      let total = 0;
+      // オセロ挟みは打つ順番で結果が変わるので、順番を無視する推定（AMAF）を弱める
+      const K = flipN ? 60 : 600;
+      const EC = P.C ?? 0.35;
+      const pickKid = (kids, parentN) => {
+        let best = null, bv = -1;
+        const lt = Math.log(parentN + 1);
+        for (const c of kids){
+          if (c.bad) continue;
+          let v;
+          if (c.n === 0) v = 10 + Math.random();
+          else {
+            const beta = Math.sqrt(K / (3 * c.n + K));
+            const mc = c.w / c.n, am = c.an ? c.aw / c.an : 0.5;
+            v = (1 - beta) * mc + beta * am + EC * Math.sqrt(lt / c.n);
+          }
+          if (v > bv){ bv = v; best = c; }
+        }
+        return best;
+      };
+      // 上級：木探索（相手の応手も読む）
+      const genKids = (b, color, ko) => {
+        const kids = [];
+        let near2 = null;
+        if (big){
+          near2 = new Uint8Array(A);
+          for (let q = 0; q < A; q++){
+            if (b[q] !== 1 && b[q] !== 2) continue;
+            const x = q % N, y = (q - x) / N;
+            for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++){
+              const a = x + dx, e = y + dy;
+              if (a >= 0 && e >= 0 && a < N && e < N) near2[e*N + a] = 1;
+            }
+          }
+        }
+        for (let q = 0; q < A; q++){
+          if (b[q] !== 0 || q === ko || isEye(b, q, color) || (near2 && !near2[q])) continue;
+          const k = { p: q, n: 0, w: 0, an: 0, aw: 0, kids: null, bad: false };
+          const x = q % N, y = (q - x) / N;
+          if (Math.min(x, y, N - 1 - x, N - 1 - y) === 0){ k.n = 10; k.w = 2; }
+          kids.push(k);
+        }
+        return kids;
+      };
+      const path = [], movers = [];
+      while (total < P.max && ((total & 7) || Date.now() - t0 < P.ms)){
+        const root = pickKid(cand, total);
+        const b = root.b.slice(), st = { ko: root.st.ko, caps: root.st.caps.slice(), last: root.p };
+        amaf.fill(0); amaf[root.p] = me;
+        path.length = 0; movers.length = 0; path.push(root); movers.push(me);
+        let node = root, color = opp, done = 0;
+        if (P.tree){
+          while (true){
+            if (!node.kids){ if (node.n >= 6) node.kids = genKids(b, color, st.ko); else break; }
+            let kid = null;
+            while ((kid = pickKid(node.kids, node.n))){
+              if (play(b, kid.p, color, st)) break;
+              kid.bad = true;
+            }
+            if (!kid) break;
+            if (amaf[kid.p] === 0) amaf[kid.p] = color;
+            path.push(kid); movers.push(color); node = kid;
+            if (P.capture && st.caps[color] >= P.target){ done = color; break; }
+            color = 3 - color;
+          }
+        }
+        const winner = done || playout(b, st, color, amaf, P);
+        for (let d = 0; d < path.length; d++){
+          const nd = path[d], mv = movers[d];
+          nd.n++; if (winner === mv) nd.w++;
+          if (nd.kids){
+            const km = 3 - mv;
+            for (const c of nd.kids) if (amaf[c.p] === km){ c.an++; if (winner === km) c.aw++; }
+          }
+        }
+        total++;
+        for (const c of cand) if (amaf[c.p] === me){ c.an++; if (winner === me) c.aw++; }
+      }
+      cand.sort((a, b) => b.n - a.n);
+      const top = cand[0], wr = top.w / top.n;
+      if (P.oppPassed && (wr >= 0.5 || wr < 0.08)) return { pass: true, moves: [], winrate: wr, playouts: total };
+      let pick = top;
+      if (P.noise){
+        const pool = cand.slice(0, 6).filter(c => c.w / c.n >= wr - 0.2);
+        let sum = pool.reduce((a, c) => a + c.n, 0), r = Math.random() * sum;
+        for (const c of pool){ r -= c.n; if (r <= 0){ pick = c; break; } }
+      }
+      const moves = [pick.p, ...cand.filter(c => c !== pick).slice(0, 10).map(c => c.p)];
+      return { moves, winrate: pick.w / pick.n, playouts: total, stats: cand.map(c => [c.p, c.n, c.w]) };
+    }
+
+    if (scope && scope.postMessage) scope.onmessage = e => scope.postMessage({ id: e.data.id, ...think(e.data) });
+    think.ref = { init: n => init(n), play: (b, p, c, st) => play(b, p, c, st), score: (b, k) => areaScore(b, k), setRules: (c, f) => { chainN = c; flipN = f; } };
+    return think;
+  }
+
+  let opp = store.get("go-opp") || "human";
+  { const c = store.get("go-cpu-color"), l = store.get("go-cpu-level"); if (c) $("sel-cpu-color").value = String(c); if (l != null) $("sel-cpu-level").value = String(l); }
+  const cpuColor = () => parseInt($("sel-cpu-color").value), cpuLevel = () => parseInt($("sel-cpu-level").value);
+  const LEVELS = [{ ms: 300, max: 400, noise: true }, { ms: 900, max: 1e9 }, { ms: 2200, max: 1e9 }, { ms: 2700, max: 1e9, local: true, parallel: true, tree: true }];
+  let thinking = false, aiReq = 0, worker = null, syncThink = null;
+  function getWorker(){
+    if (worker !== null) return worker;
+    try { worker = new Worker(URL.createObjectURL(new Blob(["(" + ENGINE.toString() + ")(self)"], { type: "text/javascript" }))); }
+    catch(e){ worker = false; }
+    return worker;
+  }
+  // 上級：複数のワーカーで同時に読んで、結果を合算する
+  const pool = [];
+  function searchParallel(params){
+    const k = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+    if (!getWorker() || k === 1) return searchOne(params);
+    while (pool.length < k - 1){
+      try { pool.push(new Worker(URL.createObjectURL(new Blob(["(" + ENGINE.toString() + ")(self)"], { type: "text/javascript" })))); }
+      catch(e){ break; }
+    }
+    const runs = [searchOne(params), ...pool.map(w => searchOne(params, w))];
+    return Promise.all(runs).then(rs => {
+      const m = new Map(); let playouts = 0;
+      for (const r of rs){
+        playouts += r.playouts || 0;
+        for (const [p, n, w] of (r.stats || [])){ const e = m.get(p) || [0, 0]; e[0] += n; e[1] += w; m.set(p, e); }
+      }
+      if (!m.size) return rs[0];
+      const sorted = [...m.entries()].sort((a, b) => b[1][0] - a[1][0]);
+      const wr = sorted[0][1][1] / sorted[0][1][0];
+      if (params.oppPassed && (wr >= 0.5 || wr < 0.08)) return { pass: true, moves: [], winrate: wr, playouts };
+      return { moves: sorted.slice(0, 11).map(e => e[0]), winrate: wr, playouts };
+    });
+  }
+  function search(params){ return params.parallel ? searchParallel(params) : searchOne(params); }
+  function searchOne(params, wk){
+    return new Promise(res => {
+      const w = wk || getWorker(), id = ++aiReq;
+      const fallback = () => { syncThink = syncThink || ENGINE({}); res(syncThink({ ...params, ms: Math.min(params.ms, 1200) })); };
+      if (!w) return setTimeout(fallback, 30);
+      const h = e => { if (e.data.id === id){ w.removeEventListener("message", h); res(e.data); } };
+      w.addEventListener("message", h);
+      w.onerror = () => { if (!wk) worker = false; fallback(); };
+      w.postMessage({ ...params, id });
+    });
+  }
+  function aiParams(color, lv){
+    const chain = RULES.find(r => r.id === "chain"), flip = RULES.find(r => r.id === "flip"), L = LEVELS[lv];
+    const prev = S.history.length ? Array.from(S.history[S.history.length - 1].board) : null;
+    return { size: S.size, board: Array.from(S.board), color, caps: S.caps.slice(), komi: komi(),
+      chainN: chain.on ? chain.n : 0, flipN: flip.on ? flip.n : 0, capture: gameType === "capture", target: target(),
+      prev, oppPassed: S.passes > 0, ms: L.ms, max: L.max, noise: !!L.noise, local: !!L.local, parallel: !!L.parallel, tree: !!L.tree };
+  }
+  function maybeAI(){
+    if (opp !== "cpu" || S.mode !== "play" || S.turn !== cpuColor() || thinking) return;
+    thinking = true; say("cpuThinking", "think"); updateButtons();
+    const game = S, moveNo = S.history.length;
+    search(aiParams(cpuColor(), cpuLevel())).then(r => {
+      thinking = false;
+      if (S !== game || S.history.length !== moveNo || S.mode !== "play" || S.turn !== cpuColor()){ updateButtons(); return; }
+      if (!r.pass) for (const m of r.moves){ const t0 = S.turn; play(m); if (S.turn !== t0) return; }
+      pass();
+    });
+  }
+  function hint(){
+    if (thinking || S.mode !== "play") return;
+    thinking = true; say("hintThinking", "think"); updateButtons();
+    const game = S, moveNo = S.history.length;
+    search(aiParams(S.turn, 2)).then(r => {
+      thinking = false;
+      if (S !== game || S.history.length !== moveNo){ updateButtons(); return; }
+      if (r.pass || !r.moves.length) say("hintPass");
+      else { S.hint = r.moves[0]; say("hintSay", "good", coord(r.moves[0]), Math.round(r.winrate * 100)); }
+      render();
+    });
+  }
+  function updateButtons(){
+    ["b-pass", "b-undo", "b-hint"].forEach(id => { if (thinking) $(id).disabled = true; });
+    if (!thinking){ $("b-hint").disabled = S.mode !== "play"; $("b-undo").disabled = S.mode === "setup"; $("b-pass").disabled = S.mode !== "play"; }
+  }
+
   /* ---------- 置き石 ---------- */
   function startGame(){
     const sv = $("sel-size").value;
@@ -686,6 +1168,10 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (h >= 2){
       S.mode = "setup"; S.hcap = h; $("sel-komi").value = "0";
       say("hcBegin", "", h);
+      if (opp === "cpu" && cpuColor() === 1){
+        (S.mask ? spreadPoints(h) : starPoints(S.size, h)).forEach(i => S.board[i] = 1);
+        return finishSetup();
+      }
     } else if (S.mask) say("newIrr", "", S.mask.reduce((a,v)=>a+v,0));
     else say("newEven", "", S.size);
     render();
@@ -718,8 +1204,11 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (S.mode === "setup") return;
     if (S.mode === "score") return exitScoring();
     if (S.mode === "over"){ S.mode = "play"; S.winner = 0; }
-    const h = S.history.pop(); if (!h) return say("noUndo", "warn");
-    Object.assign(S, h); S.hint = -1; say("undone"); render();
+    if (thinking) return;
+    let h = S.history.pop(); if (!h) return say("noUndo", "warn");
+    Object.assign(S, h);
+    while (opp === "cpu" && S.turn === cpuColor() && S.history.length){ h = S.history.pop(); Object.assign(S, h); }
+    S.hint = -1; say("undone"); render();
   }
   function pass(){
     if (S.mode !== "play") return;
@@ -940,6 +1429,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     const atariSet = new Set(); ataris.forEach(gr => gr.stones.forEach(s => atariSet.add(s)));
     const pulse = reduceMotion ? 1 : .55 + .45 * Math.sin(performance.now() / 1000 * 5);
     const piece = pieces !== "stone";
+    // 取られない石の輪：黒は金、白は銀
+    const RING = { 1: "rgba(196,142,28,.85)", 2: "rgba(104,138,172,.9)" };
     // アタリの石は小刻みに震える
     const now = performance.now() / 1000;
     const shakeAt = i => (!atariSet.has(i) || reduceMotion) ? 0 :
@@ -950,7 +1441,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       const x = x0 + shakeAt(i);
       if (piece){
         // 足元の輪（不死身＝金、アタリ＝赤）
-        if (immortalSet.has(i) && !dead) baseRing(x0, y, r, css("--gold"), 1, false);
+        if (immortalSet.has(i) && !dead) baseRing(x0, y, r, RING[c], 1, false, true);
         if (atariSet.has(i)) baseRing(x0, y, r, `rgba(226,58,40,${.55 + .45*pulse})`, pulse, true);
         ctx.globalAlpha = dead ? .4 : 1;
         drawPiece(x, y, r, c, levelOf(sizeOf[i]));
@@ -959,7 +1450,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
         drawStone(x, y, r, c);
         ctx.globalAlpha = 1;
         if (immortalSet.has(i) && !dead){
-          ctx.strokeStyle = css("--gold"); ctx.lineWidth = Math.max(2, cell*.07);
+          ctx.strokeStyle = RING[c]; ctx.lineWidth = Math.max(1.5, cell*.055);
           ctx.beginPath(); ctx.arc(x, y, r*.62, 0, 7); ctx.stroke();
         }
         if (atariSet.has(i)){
@@ -987,10 +1478,10 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     });
     if (ataris.length && !reduceMotion && !animating){ animating = true; requestAnimationFrame(() => { animating = false; draw(); }); }
 
-    function baseRing(x, y, r, color, glow, red){
+    function baseRing(x, y, r, color, glow, red, thin){
       ctx.save();
       if (red){ ctx.shadowColor = "rgba(226,58,40,.9)"; ctx.shadowBlur = cell*.3*glow; }
-      ctx.strokeStyle = color; ctx.lineWidth = Math.max(2.5, cell*.08);
+      ctx.strokeStyle = color; ctx.lineWidth = thin ? Math.max(1.5, cell*.05) : Math.max(2.5, cell*.08);
       ctx.beginPath(); ctx.ellipse(x, y + r*.6, r*.88, r*.34, 0, 0, 7); ctx.stroke();
       ctx.restore();
     }
@@ -1013,7 +1504,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       ctx.setLineDash([cell*.12, cell*.08]); ctx.beginPath(); ctx.arc(x, y, r*.9, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     }
     // 打つ前の影
-    if (!scoring && S.mode !== "over" && hover >= 0 && !S.board[hover]){
+    if (!scoring && S.mode !== "over" && hover >= 0 && !S.board[hover] && !thinking && !(opp === "cpu" && S.mode === "play" && S.turn === cpuColor())){
       const hx = P(hover % n), hy = P(Math.floor(hover / n));
       ctx.globalAlpha = .45;
       if (pieces !== "stone") drawPiece(hx, hy, r, S.turn, 1); else drawStone(hx, hy, r, S.turn);
@@ -1333,7 +1824,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
 
     $("log").innerHTML = S.log.slice(0, 12).map((e, idx) =>
       `<li><span class="num">${S.log.length - idx}.</span> ${logText(e)}</li>`).join("") || `<li>${t("logEmpty")}</li>`;
+    document.querySelectorAll("[data-opp]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.opp === opp)));
+    $("cpu-opts").hidden = opp !== "cpu"; $("cpu-note").hidden = opp !== "cpu";
+    if (opp === "cpu") $("cpu-note").textContent = t("cpuNote");
+    updateButtons();
     draw();
+    if (opp === "cpu") setTimeout(maybeAI, 80);
   }
 
   /* ---------- 例題 ---------- */
@@ -1395,11 +1891,19 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   cv.addEventListener("click", e => {
     const p = pointFromEvent(e); if (p < 0) return;
     if (S.mode === "over") return say("overClick");
+    if (S.mode === "play" && (thinking || (opp === "cpu" && S.turn === cpuColor()))) return say("cpuWait", "think");
     if (S.mode === "score") toggleDead(p); else if (S.mode === "setup") toggleSetup(p); else play(p);
   });
   document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => { view = b.dataset.view; store.set("go-view", view); render(); }));
   document.querySelectorAll("[data-piece]").forEach(b => b.addEventListener("click", () => { pieces = b.dataset.piece; store.set("go-pieces", pieces); render(); }));
-  $("b-pass").addEventListener("click", pass);
+  $("b-pass").addEventListener("click", () => { if (!thinking && !(opp === "cpu" && S.turn === cpuColor())) pass(); });
+  $("b-hint").addEventListener("click", hint);
+  document.querySelectorAll("[data-opp]").forEach(b => b.addEventListener("click", () => {
+    if (opp === b.dataset.opp) return;
+    opp = b.dataset.opp; store.set("go-opp", opp); startGame();
+  }));
+  $("sel-cpu-color").addEventListener("change", e => { store.set("go-cpu-color", parseInt(e.target.value)); startGame(); });
+  $("sel-cpu-level").addEventListener("change", e => { store.set("go-cpu-level", parseInt(e.target.value)); render(); });
   $("b-undo").addEventListener("click", undo);
   $("b-score").addEventListener("click", () => {
     if (S.mode === "over") return;
@@ -1413,7 +1917,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }));
   $("sel-target").addEventListener("change", e => { store.set("go-target", parseInt(e.target.value)); startGame(); });
   $("b-new").addEventListener("click", startGame);
-  $("sel-size").addEventListener("change", startGame);
+  $("sel-size").addEventListener("change", () => {
+    // 13路・19路（変則の中・大も）はコミ6.5目、それより小さい盤は5.5目
+    const v = $("sel-size").value;
+    $("sel-komi").value = ["13", "19", "rm", "rl"].includes(v) ? "6.5" : "5.5";
+    startGame();
+  });
   $("sel-hcap").addEventListener("change", startGame);
   $("b-hc-star").addEventListener("click", () => { clearBlack(); (S.mask ? spreadPoints(S.hcap) : starPoints(S.size, S.hcap)).forEach(i => S.board[i] = 1); say("starPlaced"); render(); });
   $("b-hc-clear").addEventListener("click", () => { clearBlack(); say(""); render(); });

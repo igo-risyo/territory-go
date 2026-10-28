@@ -1263,7 +1263,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     net.peer = new Peer(ROOM_PREFIX + net.room);
     net.peer.on("open", () => { setNet("waiting"); makeRoster(); });
     net.peer.on("connection", c => {
-      const ent = { c, name: "…", role: null };
+      const ent = { c, name: "…", role: null, seen: Date.now() };
       net.conns.push(ent);
       c.on("data", m => onHostData(ent, m));
       c.on("close", () => hostLeft(ent));
@@ -1282,7 +1282,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     net.peer.on("open", () => {
       const c = net.peer.connect(ROOM_PREFIX + code, { reliable: true });
       net.conn = c;
-      c.on("open", () => c.send({ type: "hello", name: myName }));
+      c.on("open", () => { net.seenHost = Date.now(); c.send({ type: "hello", name: myName }); });
       c.on("data", onGuestData);
       c.on("close", () => { if (net.conn === c) setNet("lost"); });
       c.on("error", () => { if (net.conn === c) setNet("lost"); });
@@ -1327,6 +1327,9 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
   function onHostData(ent, m){
     if (!m || !m.type) return;
+    ent.seen = Date.now();
+    if (m.type === "ping") return;
+    if (m.type === "bye") return hostLeft(ent);
     if (m.type === "hello"){
       ent.name = String(m.name || "ゲスト").slice(0, 16);
       const hasPlayer = net.conns.some(x => x !== ent && x.role === "player" && x.c.open);
@@ -1346,6 +1349,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   function hostLeft(ent){
     if (!net.conns.includes(ent)) return;
     net.conns = net.conns.filter(x => x !== ent);
+    try { ent.c.close(); } catch(e){}
     if (ent.role){ say("netLeft", "warn", ent.name); }
     if (ent.role === "player"){
       // 観戦者がいれば、次の人を対局相手にする
@@ -1357,6 +1361,9 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
   function onGuestData(m){
     if (!m || !m.type) return;
+    net.seenHost = Date.now();
+    if (m.type === "ping") return;
+    if (m.type === "bye") return setNet("lost");
     if (m.type === "setup"){
       const first = net.state !== "connected", wasWatch = net.watch;
       net.watch = m.role === "watch"; net.myColor = m.color; net.roster = m.roster || [];
@@ -1390,6 +1397,24 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     net.applying = false;
     if (!net.watch && S.mode === "play" && S.turn === net.myColor && S.history.length > prevLen && S.last >= 0) say("netOppMoved", "good", coord(S.last));
   }
+  // 生存確認：3秒ごとに合図を送り、25秒以上届かなければ退室とみなす
+  setInterval(() => {
+    if (!online()) return;
+    const now = Date.now();
+    if (net.role === "host"){
+      net.conns.forEach(x => { if (x.c.open) x.c.send({ type: "ping" }); });
+      net.conns.filter(x => now - x.seen > 25000).forEach(hostLeft);
+    } else if (net.role === "guest" && net.conn && net.conn.open){
+      net.conn.send({ type: "ping" });
+      if (net.state === "connected" && now - (net.seenHost || now) > 30000) setNet("lost");
+    }
+  }, 3000);
+  addEventListener("pagehide", () => {
+    try {
+      if (net.role === "host") net.conns.forEach(x => x.c.open && x.c.send({ type: "bye" }));
+      else if (net.conn && net.conn.open) net.conn.send({ type: "bye" });
+    } catch(e){}
+  });
   function showUndoReq(color){ $("net-req").hidden = false; $("net-req-text").textContent = t("netUndoAsk"); net.pendingUndo = color; }
   function netUndoAccept(){
     $("net-req").hidden = true;

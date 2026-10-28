@@ -406,6 +406,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       finalSay: (w, d) => w ? `終局：${col(w)}の${d}目勝ちで確定しました` : "終局：持碁（引き分け）で確定しました",
       finalLog: (w, d) => w ? `終局（${col(w)}の${d}目勝ち）` : "終局（持碁）", finalDone: "お互いが同意し、終局しました",
       netExit: "退室する", netExitNote: "対局が終わりました。退室すると一覧に戻ります。", netExited: "退室しました",
+      cpuResign: c => `コンピューター（${col(c)}）が投了しました。あなたの勝ちです`,
       resign: "投了", resignConfirm: "もう一度押すと投了", resignLog: c => `${col(c)}の投了`, resignSay: c => `${col(c)}が投了しました。${col(3 - c)}の勝ちです`,
       timeL: "持ち時間", tMove: n => `1手${n}秒`, tSudden: "3分切れ負け",
       timeLoss: c => `${col(c)}の時間切れ。${col(3 - c)}の勝ちです`, timeLog: c => `${col(c)}の時間切れ`,
@@ -534,6 +535,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       finalSay: (w, d) => w ? `Game over: ${col(w)} wins by ${d}` : "Game over: jigo (draw)",
       finalLog: (w, d) => w ? `Game over (${col(w)} +${d})` : "Game over (jigo)", finalDone: "Both players agreed. The game is over",
       netExit: "Leave room", netExitNote: "The game is over. Leave to return to the player list.", netExited: "You left the room",
+      cpuResign: c => `The computer (${col(c)}) resigned. You win`,
       resign: "Resign", resignConfirm: "Tap again to resign", resignLog: c => `${col(c)} resigned`, resignSay: c => `${col(c)} resigned. ${col(3 - c)} wins`,
       timeL: "Time", tMove: n => `${n}s per move`, tSudden: "3 min sudden death",
       timeLoss: c => `${col(c)} ran out of time. ${col(3 - c)} wins`, timeLog: c => `${col(c)} lost on time`,
@@ -1302,6 +1304,18 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     search(aiParams(cpuColor(), cpuLevel())).then(r => {
       thinking = false;
       if (S !== game || S.history.length !== moveNo || S.mode !== "play" || S.turn !== cpuColor()){ updateButtons(); return; }
+      // 逆転の見込みがない（勝率10%未満が3手続いた）と判断したら投了する。オセロルールの時は投了しない
+      const flipOn = RULES.find(x => x.id === "flip").on;
+      S.cpuLow = (!r.pass && r.winrate < 0.1) ? (S.cpuLow || 0) + 1 : 0;
+      const enough = S.history.length >= Math.max(20, Math.floor(S.board.length / 3));
+      if (!flipOn && S.cpuLow >= 3 && enough){
+        const who = cpuColor();
+        pushHistory();
+        S.mode = "over"; S.winner = 3 - who; S.resigned = who; S.result = null;
+        S.log.unshift([["resignLog", who]]);
+        say("cpuResign", "good", who);
+        return render();
+      }
       if (!r.pass) for (const m of r.moves){ const t0 = S.turn; play(m); if (S.turn !== t0) return; }
       pass();
     });

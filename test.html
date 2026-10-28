@@ -1554,7 +1554,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   const myStatus = () => net.state === "connected" ? "playing" : "free";
   function lobbyStart(){
     if (lobby.peer || lobby.state === "starting") return;
-    lobby.state = "starting"; lobbyUI();
+    lobby.state = "starting"; lobby.startAt = Date.now(); lobbyUI();
     loadPeer().then(lobbyClaim, () => { lobby.state = "fail"; lobbyUI(); });
   }
   function lobbyStop(){
@@ -1569,7 +1569,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     const keepOut = lobby.out, keepInc = lobby.inc;
     try { lobby.conn && lobby.conn.close(); } catch(e){}
     try { lobby.peer && lobby.peer.destroy(); } catch(e){}
-    Object.assign(lobby, { peer: null, isHost: false, conn: null, clients: new Map(), list: [], myId: "", state: "starting" });
+    Object.assign(lobby, { peer: null, isHost: false, conn: null, clients: new Map(), list: [], myId: "", state: "starting", startAt: Date.now() });
     lobby.out = keepOut; lobby.inc = keepInc;
     clearTimeout(lobby.retry);
     lobby.retry = setTimeout(() => { if (online()) lobbyClaim(); else lobbyStop(); }, 400 + Math.random() * 2500);
@@ -1685,6 +1685,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
   // 生存確認と状態の更新
   setInterval(() => {
+    // つながらないまま12秒たったら、最初からやり直す
+    if (lobby.state === "starting" && online() && Date.now() - (lobby.startAt || 0) > 12000) return lobbyRestart();
     if (lobby.state !== "on") return;
     const now = Date.now();
     if (lobby.isHost){

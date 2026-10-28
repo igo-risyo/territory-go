@@ -66,6 +66,12 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation;cursor:poi
 .net input[type=text]{flex:1 1 180px;min-width:0;font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 .net-status{font-size:13.5px;font-weight:700}
 .net-status:empty{display:none}
+.roster{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13.5px}
+.roster li{display:flex;align-items:center;gap:8px;min-width:0}
+.roster .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.roster .dot{width:14px;height:14px}
+.roster .tag{font-size:11px;padding:1px 6px;border-radius:9px;border:1px solid var(--line);color:var(--muted);flex:none}
+.roster .tag.me{border-color:var(--accent);color:var(--accent)}
 #net-req{padding:8px 10px;border-radius:7px;background:var(--bg);border:1px solid var(--accent)}
 .basics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 @media (max-width:560px){.basics{grid-template-columns:minmax(0,1fr)}}
@@ -206,7 +212,13 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
             <input id="net-url" type="text" readonly aria-label="招待URL">
             <button class="btn small" id="b-net-copy" type="button" data-i="netCopy">コピー</button>
           </div>
+          <div class="row">
+            <label for="net-name" data-i="netNameL">あなたの名前</label>
+            <input id="net-name" type="text" maxlength="16" autocomplete="nickname">
+          </div>
           <div class="net-status" id="net-status" role="status"></div>
+          <div class="sub" id="net-count"></div>
+          <ul class="roster" id="net-roster" hidden></ul>
           <div class="row" id="net-req" hidden>
             <span id="net-req-text"></span>
             <button class="btn small primary" id="b-net-ok" type="button" data-i="netOk">OK</button>
@@ -215,7 +227,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
           <div class="row" id="net-live" hidden>
             <button class="btn small" id="b-net-leave" type="button" data-i="netLeave">対局をやめる</button>
           </div>
-          <div class="sub" data-i="netNote">試験版です。部屋を作ってURLを相手に送ると対局できます。部屋を作った人の設定（盤・コミ・ルール）で打ちます。どちらかがページを閉じると対局は終わります。</div>
+          <div class="sub" data-i="netNote">試験版です。部屋を作ってURLを相手に送ると対局できます。2人目以降にURLを開いた人は観戦になります。部屋を作った人の設定（盤・コミ・ルール）で打ちます。部屋を作った人がページを閉じると部屋はなくなります。</div>
         </div>
       </section>
 
@@ -333,9 +345,14 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "変則・小（7〜9路くらい）", irrM: "変則・中（13路くらい）", irrL: "変則・大（19路くらい）", reroll: "別の形にする",
       komiL: "コミ", none: "なし", optKomi: n => `${n}目`,
       hcapL: "置き石", hcapNone: "なし（互先）", optHcap: n => `${KAN[n]}子局`,
+      netNameL: "あなたの名前", netWatchTag: "観戦", netHostTag: "部屋主", netMeTag: "あなた",
+      netCount: (n, w) => `部屋にいる人：${n}人${w ? `（うち観戦 ${w}人）` : ""}`,
+      netJoinedPlayer: n => `${n}さんが対局相手として入りました`, netJoinedWatch: n => `${n}さんが観戦に入りました`,
+      netLeft: n => `${n}さんが退室しました`, netPromoted: n => `${n}さんが新しい対局相手になりました`,
+      netWatching: "観戦中です（打つことはできません）",
       oppOnline: "オンライン", netColorL: "あなたの色", netHost: "部屋を作る", netCopy: "コピー", netCopied: "コピーしました",
       netOk: "OK", netNo: "断る", netLeave: "対局をやめる",
-      netNote: "試験版です。部屋を作ってURLを相手に送ると対局できます。部屋を作った人の設定（盤・コミ・ルール）で打ちます。どちらかがページを閉じると対局は終わります。",
+      netNote: "試験版です。部屋を作ってURLを相手に送ると対局できます。2人目以降にURLを開いた人は観戦になります。部屋を作った人の設定（盤・コミ・ルール）で打ちます。部屋を作った人がページを閉じると部屋はなくなります。",
       netStarting: "部屋を準備しています", netWaiting: "このURLを相手に送ってください。相手が開くと対局が始まります",
       netJoining: "部屋に入っています", netConnected: c => `つながりました。あなたは${col(c)}です`,
       netLost: "相手との接続が切れました", netFail: "接続できませんでした。部屋がもう閉じているか、通信が制限されています",
@@ -435,9 +452,14 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "Irregular S (≈ 7–9)", irrM: "Irregular M (≈ 13)", irrL: "Irregular L (≈ 19)", reroll: "New shape",
       komiL: "Komi", none: "None", optKomi: n => `${n}`,
       hcapL: "Handicap", hcapNone: "None (even)", optHcap: n => pl(n, "stone"),
+      netNameL: "Your name", netWatchTag: "watching", netHostTag: "host", netMeTag: "you",
+      netCount: (n, w) => `In this room: ${n}${w ? ` (${w} watching)` : ""}`,
+      netJoinedPlayer: n => `${n} joined as your opponent`, netJoinedWatch: n => `${n} is now watching`,
+      netLeft: n => `${n} left the room`, netPromoted: n => `${n} is now the opponent`,
+      netWatching: "Watching (you can't play moves)",
       oppOnline: "Online", netColorL: "You play", netHost: "Create a room", netCopy: "Copy", netCopied: "Copied",
       netOk: "OK", netNo: "Decline", netLeave: "Leave game",
-      netNote: "Trial version. Create a room and send the link to your opponent. The room creator's settings (board, komi, rules) are used. The game ends if either player closes the page.",
+      netNote: "Trial version. Create a room and send the link to your opponent. Anyone else who opens the link watches. The room creator's settings (board, komi, rules) are used. The room closes when its creator closes the page.",
       netStarting: "Setting up the room", netWaiting: "Send this link to your opponent. The game starts when they open it",
       netJoining: "Joining the room", netConnected: c => `Connected. You play ${col(c)}`,
       netLost: "The connection to your opponent was lost", netFail: "Couldn't connect. The room may be closed, or your network blocks it",
@@ -1208,11 +1230,13 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
 
   /* ---------- オンライン対局（PeerJS・試験版） ---------- */
-  const net = { peer: null, conn: null, role: null, myColor: 0, room: "", state: "idle", last: "", applying: false };
+  // 部屋を作った人（ホスト）が中継役。最初に入った人が対局相手、それ以降は観戦者
+  const net = { peer: null, conn: null, conns: [], role: null, myColor: 0, watch: false, room: "", state: "idle", last: "", applying: false, roster: [] };
   const ROOM_PREFIX = "tgb-room-";
   const online = () => opp === "online";
-  const netLive = () => online() && net.conn && net.conn.open;
-  const notMyTurn = () => (opp === "cpu" && S.turn === cpuColor()) || (online() && net.myColor && S.turn !== net.myColor);
+  const netLive = () => online() && net.state === "connected" && (net.role === "host" ? net.conns.some(x => x.role === "player" && x.c.open) : !!(net.conn && net.conn.open));
+  const notMyTurn = () => (opp === "cpu" && S.turn === cpuColor()) || (online() && net.state === "connected" && (net.watch || (net.myColor && S.turn !== net.myColor)));
+  let myName = store.get("go-name") || ("ゲスト" + Math.floor(100 + Math.random() * 900));
   function loadPeer(){
     if (window.Peer) return Promise.resolve();
     return new Promise((res, rej) => {
@@ -1224,10 +1248,11 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   const randRoom = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
   function netReset(){
     try { net.conn && net.conn.close(); } catch(e){}
+    net.conns.forEach(x => { try { x.c.close(); } catch(e){} });
     try { net.peer && net.peer.destroy(); } catch(e){}
-    Object.assign(net, { peer: null, conn: null, role: null, myColor: 0, room: "", state: "idle", last: "" });
+    Object.assign(net, { peer: null, conn: null, conns: [], role: null, myColor: 0, watch: false, room: "", state: "idle", last: "", roster: [] });
   }
-  function setNet(st, ...a){ net.state = st; net.msg = [st, a]; netUI(); }
+  function setNet(st){ net.state = st; netUI(); }
   async function hostRoom(){
     netReset();
     $("sel-hcap").value = "0";
@@ -1236,12 +1261,15 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     net.role = "host"; net.room = randRoom(); net.myColor = parseInt($("sel-net-color").value);
     setNet("starting");
     net.peer = new Peer(ROOM_PREFIX + net.room);
-    net.peer.on("open", () => setNet("waiting"));
+    net.peer.on("open", () => { setNet("waiting"); makeRoster(); });
     net.peer.on("connection", c => {
-      if (net.conn && net.conn.open){ c.on("open", () => { c.send({ type: "full" }); setTimeout(() => c.close(), 300); }); return; }
-      attach(c);
+      const ent = { c, name: "…", role: null };
+      net.conns.push(ent);
+      c.on("data", m => onHostData(ent, m));
+      c.on("close", () => hostLeft(ent));
+      c.on("error", () => hostLeft(ent));
     });
-    net.peer.on("error", () => setNet(net.conn ? "lost" : "fail"));
+    net.peer.on("error", () => { if (!net.conns.length) setNet("fail"); });
     render();
   }
   async function joinRoom(code){
@@ -1251,18 +1279,17 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     net.role = "guest"; net.room = code;
     setNet("joining");
     net.peer = new Peer();
-    net.peer.on("open", () => { attach(net.peer.connect(ROOM_PREFIX + code, { reliable: true })); });
+    net.peer.on("open", () => {
+      const c = net.peer.connect(ROOM_PREFIX + code, { reliable: true });
+      net.conn = c;
+      c.on("open", () => c.send({ type: "hello", name: myName }));
+      c.on("data", onGuestData);
+      c.on("close", () => { if (net.conn === c) setNet("lost"); });
+      c.on("error", () => { if (net.conn === c) setNet("lost"); });
+    });
     net.peer.on("error", () => setNet(net.conn && net.conn.open ? "lost" : "fail"));
     render();
   }
-  function attach(c){
-    net.conn = c;
-    c.on("open", () => { if (net.role === "guest") c.send({ type: "hello" }); });
-    c.on("data", onNetData);
-    c.on("close", () => { if (net.conn === c) setNet("lost"); });
-    c.on("error", () => { if (net.conn === c) setNet("lost"); });
-  }
-  const sendNet = m => { if (net.conn && net.conn.open) net.conn.send(m); };
   function snapshot(){
     return { size: S.size, mask: S.mask ? Array.from(S.mask) : null, board: Array.from(S.board), turn: S.turn, caps: S.caps.slice(),
       last: S.last, passes: S.passes, mode: S.mode, winner: S.winner || 0, dead: [...S.dead], seki: [...(S.seki || [])], safe: [...(S.safe || [])],
@@ -1284,14 +1311,75 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     renderRules();
   }
   const payloadKey = () => JSON.stringify(snapshot()) + (net.role === "host" ? JSON.stringify(settingsNow()) : "");
+  // ホスト：参加者全員に、盤面と設定を送る
+  function setupMsg(ent){
+    return { type: "setup", settings: settingsNow(), state: snapshot(), role: ent.role, color: ent.role === "player" ? 3 - net.myColor : 0, roster: net.roster };
+  }
+  function broadcast(except){
+    net.conns.forEach(x => { if (x.role && x.c.open && x !== except) x.c.send(setupMsg(x)); });
+  }
+  function makeRoster(){
+    const pl = net.conns.find(x => x.role === "player" && x.c.open);
+    net.roster = [{ name: myName, color: net.myColor, role: "player", host: true }];
+    if (pl) net.roster.push({ name: pl.name, color: 3 - net.myColor, role: "player" });
+    net.conns.filter(x => x.role === "watch" && x.c.open).forEach(x => net.roster.push({ name: x.name, color: 0, role: "watch" }));
+    netUI();
+  }
+  function onHostData(ent, m){
+    if (!m || !m.type) return;
+    if (m.type === "hello"){
+      ent.name = String(m.name || "ゲスト").slice(0, 16);
+      const hasPlayer = net.conns.some(x => x !== ent && x.role === "player" && x.c.open);
+      ent.role = hasPlayer ? "watch" : "player";
+      makeRoster();
+      if (ent.role === "player"){ setNet("connected"); net.last = payloadKey(); }
+      broadcast();
+      say(ent.role === "player" ? "netJoinedPlayer" : "netJoinedWatch", "good", ent.name);
+    } else if (m.type === "name"){
+      ent.name = String(m.name || "ゲスト").slice(0, 16); makeRoster(); broadcast();
+    } else if (ent.role === "player"){
+      if (m.type === "sync"){ applyRemote(() => restore(m.state)); broadcast(ent); }
+      else if (m.type === "undoReq"){ showUndoReq(m.color); }
+      else if (m.type === "undoNo"){ say("netUndoNo", "warn"); }
+    }
+  }
+  function hostLeft(ent){
+    if (!net.conns.includes(ent)) return;
+    net.conns = net.conns.filter(x => x !== ent);
+    if (ent.role){ say("netLeft", "warn", ent.name); }
+    if (ent.role === "player"){
+      // 観戦者がいれば、次の人を対局相手にする
+      const next = net.conns.find(x => x.role === "watch" && x.c.open);
+      if (next){ next.role = "player"; say("netPromoted", "good", next.name); }
+      else setNet("waiting");
+    }
+    makeRoster(); broadcast();
+  }
+  function onGuestData(m){
+    if (!m || !m.type) return;
+    if (m.type === "setup"){
+      const first = net.state !== "connected", wasWatch = net.watch;
+      net.watch = m.role === "watch"; net.myColor = m.color; net.roster = m.roster || [];
+      setNet("connected");
+      applyRemote(() => { applySettings(m.settings); restore(m.state); });
+      if (first || wasWatch !== net.watch) say(net.watch ? "netWatching" : "netConnected", "good", net.myColor);
+    }
+    else if (m.type === "undoReq"){ showUndoReq(m.color); }
+    else if (m.type === "undoNo"){ say("netUndoNo", "warn"); }
+  }
+  function sendToOpponent(msg){
+    if (net.role === "host"){ const pl = net.conns.find(x => x.role === "player" && x.c.open); if (pl) pl.c.send(msg); }
+    else if (net.conn && net.conn.open) net.conn.send(msg);
+  }
+  const sendNet = sendToOpponent;
   // 画面を描き直すたびに、変化があれば相手に送る
   function netSync(){
-    if (!netLive() || net.applying || net.state !== "connected") return;
+    if (!online() || net.applying || net.state !== "connected" || net.watch) return;
     const key = payloadKey();
     if (key === net.last) return;
     net.last = key;
-    if (net.role === "host") sendNet({ type: "setup", settings: settingsNow(), state: snapshot(), guestColor: 3 - net.myColor });
-    else sendNet({ type: "sync", state: snapshot() });
+    if (net.role === "host") broadcast();
+    else if (net.conn && net.conn.open) net.conn.send({ type: "sync", state: snapshot() });
   }
   function applyRemote(fn){
     net.applying = true;
@@ -1300,22 +1388,9 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     net.last = payloadKey();
     render();
     net.applying = false;
-    if (S.mode === "play" && S.turn === net.myColor && S.history.length > prevLen && S.last >= 0) say("netOppMoved", "good", coord(S.last));
+    if (!net.watch && S.mode === "play" && S.turn === net.myColor && S.history.length > prevLen && S.last >= 0) say("netOppMoved", "good", coord(S.last));
   }
-  function onNetData(m){
-    if (!m || !m.type) return;
-    if (m.type === "hello" && net.role === "host"){ net.last = ""; setNet("connected", net.myColor); netSync(); say("netConnected", "good", net.myColor); }
-    else if (m.type === "full"){ setNet("full"); }
-    else if (m.type === "setup" && net.role === "guest"){
-      const first = net.state !== "connected";
-      net.myColor = m.guestColor; setNet("connected", net.myColor);
-      applyRemote(() => { applySettings(m.settings); restore(m.state); });
-      if (first) say("netConnected", "good", net.myColor);
-    }
-    else if (m.type === "sync"){ applyRemote(() => restore(m.state)); }
-    else if (m.type === "undoReq"){ $("net-req").hidden = false; $("net-req-text").textContent = t("netUndoAsk"); net.pendingUndo = m.color; }
-    else if (m.type === "undoNo"){ say("netUndoNo", "warn"); }
-  }
+  function showUndoReq(color){ $("net-req").hidden = false; $("net-req-text").textContent = t("netUndoAsk"); net.pendingUndo = color; }
   function netUndoAccept(){
     $("net-req").hidden = true;
     const who = net.pendingUndo; net.pendingUndo = 0;
@@ -1334,11 +1409,26 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     $("net-invite").hidden = !(net.role === "host" && (st === "waiting" || st === "connected"));
     $("net-live").hidden = !(st === "connected" || st === "waiting" || st === "starting" || st === "joining");
     if (net.role === "host" && net.room) $("net-url").value = location.origin + location.pathname + "#join-" + net.room;
+    if (document.activeElement !== $("net-name")) $("net-name").value = myName;
     const key = { starting: "netStarting", waiting: "netWaiting", joining: "netJoining", lost: "netLost", fail: "netFail", full: "netFull" }[st];
-    $("net-status").textContent = st === "connected" ? t("netConnected", net.myColor) + "　" + (S.mode === "play" ? (S.turn === net.myColor ? t("netYourTurn") : t("netWait")) : "") : key ? t(key) : "";
-    const guestLock = net.role === "guest" && st === "connected";
-    ["sel-size", "sel-komi", "sel-hcap", "sel-target", "b-new", "b-reroll"].forEach(id => { $(id).disabled = guestLock || (id === "sel-hcap" && on); });
-    document.querySelectorAll("[data-type], #rules input").forEach(el => el.disabled = guestLock);
+    let status = key ? t(key) : "";
+    if (st === "connected") status = net.watch ? t("netWatching") : t("netConnected", net.myColor) + "　" + (S.mode === "play" ? (S.turn === net.myColor ? t("netYourTurn") : t("netWait")) : "");
+    $("net-status").textContent = status;
+    // 参加者の一覧
+    const list = $("net-roster");
+    const people = net.roster.length ? net.roster : [];
+    list.hidden = !people.length;
+    list.innerHTML = people.map(p => {
+      const me = (net.role === "host" && p.host) || (net.role === "guest" && p.name === myName && ((net.watch && p.role === "watch") || (!net.watch && p.color === net.myColor)));
+      const tag = p.role === "watch" ? `<span class="tag">${t("netWatchTag")}</span>` : `<span class="dot ${p.color === 1 ? "b" : "w"}"></span>`;
+      return `<li>${tag}<span class="nm"></span>${p.host ? `<span class="tag">${t("netHostTag")}</span>` : ""}${me ? `<span class="tag me">${t("netMeTag")}</span>` : ""}</li>`;
+    }).join("");
+    [...list.querySelectorAll(".nm")].forEach((el, k) => el.textContent = people[k].name);
+    $("net-count").textContent = people.length ? t("netCount", people.length, people.filter(p => p.role === "watch").length) : "";
+    const lock = net.role === "guest" && st === "connected";
+    ["sel-size", "sel-komi", "sel-hcap", "sel-target", "b-new", "b-reroll"].forEach(id => { $(id).disabled = lock || (id === "sel-hcap" && on); });
+    document.querySelectorAll("[data-type], #rules input").forEach(el => el.disabled = lock);
+    ["b-pass", "b-undo", "b-hint", "b-score"].forEach(id => { if (net.watch && st === "connected") $(id).disabled = true; });
   }
 
   /* ---------- 置き石 ---------- */
@@ -2075,6 +2165,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   cv.addEventListener("click", e => {
     const p = pointFromEvent(e); if (p < 0) return;
     if (S.mode === "over") return say("overClick");
+    if (online() && net.watch && net.state === "connected") return say("netWatching");
     if (S.mode === "play" && online() && !netLive()) return play(p);
     if (S.mode === "play" && (thinking || notMyTurn())) return say(online() ? "netWait" : "cpuWait", "think");
     if (S.mode === "score") toggleDead(p); else if (S.mode === "setup") toggleSetup(p); else play(p);
@@ -2089,6 +2180,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     opp = b.dataset.opp; if (opp !== "online") store.set("go-opp", opp); startGame();
   }));
   $("b-net-host").addEventListener("click", hostRoom);
+  $("net-name").addEventListener("change", e => {
+    myName = (e.target.value || "").trim().slice(0, 16) || myName; store.set("go-name", myName);
+    if (net.role === "host"){ makeRoster(); broadcast(); }
+    else if (net.conn && net.conn.open) net.conn.send({ type: "name", name: myName });
+    netUI();
+  });
   $("b-net-copy").addEventListener("click", () => {
     const v = $("net-url").value;
     const done = () => say("netCopied", "good");
@@ -2100,6 +2197,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   $("sel-cpu-color").addEventListener("change", e => { store.set("go-cpu-color", parseInt(e.target.value)); startGame(); });
   $("sel-cpu-level").addEventListener("change", e => { store.set("go-cpu-level", parseInt(e.target.value)); render(); });
   $("b-undo").addEventListener("click", () => {
+    if (online() && net.watch) return;
     if (netLive() && S.mode !== "score"){ sendNet({ type: "undoReq", color: net.myColor }); return say("netUndoSent"); }
     undo();
   });

@@ -259,9 +259,6 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
             <button class="btn small primary" id="b-net-ok" type="button" data-i="netOk">OK</button>
             <button class="btn small" id="b-net-no" type="button" data-i="netNo">断る</button>
           </div>
-          <div class="row" id="net-live" hidden>
-            <button class="btn small" id="b-net-leave" type="button" data-i="netLeave">対局をやめる</button>
-          </div>
           <div class="sub" data-i="netNote">試験版です。部屋を作ってURLを相手に送ると対局できます。2人目以降にURLを開いた人は観戦になります。部屋を作った人の設定（盤・コミ・ルール）で打ちます。部屋を作った人がページを閉じると部屋はなくなります。</div>
         </div>
       </section>
@@ -1499,7 +1496,6 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     const st = net.state;
     $("net-idle").hidden = !(st === "idle" || st === "lost" || st === "fail" || st === "full");
     $("net-invite").hidden = !(net.role === "host" && (st === "waiting" || st === "connected"));
-    $("net-live").hidden = !(st === "connected" || st === "waiting" || st === "starting" || st === "joining");
     if (net.role === "host" && net.room) $("net-url").value = location.origin + location.pathname + "#join-" + net.room;
     if (document.activeElement !== $("net-name")) $("net-name").value = myName;
     const key = { starting: "netStarting", waiting: "netWaiting", joining: "netJoining", lost: "netLost", fail: "netFail", full: "netFull" }[st];
@@ -2517,7 +2513,6 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   });
   $("b-net-ok").addEventListener("click", netUndoAccept);
   $("b-net-no").addEventListener("click", () => { $("net-req").hidden = true; net.pendingUndo = 0; sendNet({ type: "undoNo" }); });
-  $("b-net-leave").addEventListener("click", () => { netReset(); setNet("idle"); render(); });
   $("sel-cpu-color").addEventListener("change", e => { store.set("go-cpu-color", parseInt(e.target.value)); startGame(); });
   $("sel-cpu-level").addEventListener("change", e => { store.set("go-cpu-level", parseInt(e.target.value)); render(); });
   $("b-undo").addEventListener("click", () => {

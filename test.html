@@ -65,6 +65,10 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation;cursor:poi
 @keyframes lowpulse{50%{background:var(--bg)}}
 .clock-kind{flex:1;text-align:center;font-size:12.5px;color:var(--muted)}
 #clock-w{justify-content:flex-end}
+.agree{display:flex;flex-direction:column;gap:8px}
+.agree-row{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.agree-row span:nth-child(2){margin-right:14px}
+.final{font-size:13.5px;font-weight:700;color:var(--accent)}
 .toast{min-height:1.6em;font-size:14px;color:var(--muted)}
 .toast.warn{color:var(--warn);font-weight:500}
 .toast.good{color:var(--accent);font-weight:500}
@@ -243,6 +247,10 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
             <select id="sel-net-color"><option value="1" data-i="black">黒</option><option value="2" data-i="white">白</option></select>
             <button class="btn primary" id="b-net-host" type="button" data-i="netHost">部屋を作る</button>
           </div>
+          <div class="row" id="net-exit-row" hidden>
+            <button class="btn primary" id="b-net-exit" type="button" data-i="netExit">退室する</button>
+            <span class="sub" data-i="netExitNote">対局が終わりました。退室すると一覧に戻ります。</span>
+          </div>
           <div class="row" id="net-invite" hidden>
             <input id="net-url" type="text" readonly aria-label="招待URL">
             <button class="btn small" id="b-net-copy" type="button" data-i="netCopy">コピー</button>
@@ -288,6 +296,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
         <div class="sub" data-i="scoreNote">死んでいる石をクリックすると「死に石」になり、相手のアゲハマになります。もう一度クリックで戻せます。</div>
         <div class="result" id="result"></div>
         <div class="verdict" id="verdict"></div>
+        <div class="agree" id="agree" hidden>
+          <div class="agree-row"><span class="dot b"></span><span id="agree-b"></span><span class="dot w"></span><span id="agree-w"></span></div>
+          <button class="btn primary" id="b-agree" type="button" data-i="agreeBtn">この結果で同意する</button>
+          <div class="sub" data-i="agreeNote">2人とも同意すると終局です。死に石を変えると同意は取り消されます。</div>
+        </div>
+        <div class="final" id="final" hidden></div>
       </section>
 
       <section class="sec" aria-labelledby="h-view">
@@ -379,6 +393,11 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "変則・小（7〜9路くらい）", irrM: "変則・中（13路くらい）", irrL: "変則・大（19路くらい）", reroll: "別の形にする",
       komiL: "コミ", none: "なし", optKomi: n => `${n}目`,
       hcapL: "置き石", hcapNone: "なし（互先）", optHcap: n => `${KAN[n]}子局`,
+      agreeBtn: "この結果で同意する", agreeDone: "同意しました（相手を待っています）", agreed: "同意済み", notAgreed: "まだ",
+      agreeNote: "2人とも同意すると終局です。死に石を変えると同意は取り消されます。", agreeSent: "同意しました。相手の同意を待っています",
+      finalSay: (w, d) => w ? `終局：${col(w)}の${d}目勝ちで確定しました` : "終局：持碁（引き分け）で確定しました",
+      finalLog: (w, d) => w ? `終局（${col(w)}の${d}目勝ち）` : "終局（持碁）", finalDone: "お互いが同意し、終局しました",
+      netExit: "退室する", netExitNote: "対局が終わりました。退室すると一覧に戻ります。", netExited: "退室しました",
       timeL: "持ち時間", tMove: n => `1手${n}秒`, tSudden: "3分切れ負け",
       timeLoss: c => `${col(c)}の時間切れ。${col(3 - c)}の勝ちです`, timeLog: c => `${col(c)}の時間切れ`,
       lobbyTitle: "オンラインの人", lobbyStarting: "接続しています…", lobbyFail: "接続できませんでした",
@@ -496,6 +515,11 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "Irregular S (≈ 7–9)", irrM: "Irregular M (≈ 13)", irrL: "Irregular L (≈ 19)", reroll: "New shape",
       komiL: "Komi", none: "None", optKomi: n => `${n}`,
       hcapL: "Handicap", hcapNone: "None (even)", optHcap: n => pl(n, "stone"),
+      agreeBtn: "Agree to this result", agreeDone: "Agreed (waiting for opponent)", agreed: "agreed", notAgreed: "not yet",
+      agreeNote: "The game ends when both players agree. Changing dead stones cancels the agreement.", agreeSent: "You agreed. Waiting for your opponent",
+      finalSay: (w, d) => w ? `Game over: ${col(w)} wins by ${d}` : "Game over: jigo (draw)",
+      finalLog: (w, d) => w ? `Game over (${col(w)} +${d})` : "Game over (jigo)", finalDone: "Both players agreed. The game is over",
+      netExit: "Leave room", netExitNote: "The game is over. Leave to return to the player list.", netExited: "You left the room",
       timeL: "Time", tMove: n => `${n}s per move`, tSudden: "3 min sudden death",
       timeLoss: c => `${col(c)} ran out of time. ${col(3 - c)} wins`, timeLog: c => `${col(c)} lost on time`,
       lobbyTitle: "Players online", lobbyStarting: "Connecting…", lobbyFail: "Couldn't connect",
@@ -1354,7 +1378,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     return { size: S.size, mask: S.mask ? Array.from(S.mask) : null, board: Array.from(S.board), turn: S.turn, caps: S.caps.slice(),
       last: S.last, passes: S.passes, mode: S.mode, winner: S.winner || 0, dead: [...S.dead], seki: [...(S.seki || [])], safe: [...(S.safe || [])],
       history: S.history.map(h => ({ ...h, board: Array.from(h.board) })), log: S.log,
-      clock: S.clock ? { kind: S.clock.kind, per: S.clock.per, rem: S.clock.rem, elapsed: S.mode === "play" ? Date.now() - S.clock.turnStart : 0 } : null, tl: S.timeLoss || 0 };
+      clock: S.clock ? { kind: S.clock.kind, per: S.clock.per, rem: S.clock.rem, elapsed: S.mode === "play" ? Date.now() - S.clock.turnStart : 0 } : null, tl: S.timeLoss || 0,
+      agree: S.agree || [0, 0, 0], result: S.result || null };
   }
   function restore(x){
     S = newState(x.size, x.mask ? Uint8Array.from(x.mask) : null);
@@ -1362,7 +1387,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     S.mode = x.mode; S.winner = x.winner; S.dead = new Set(x.dead); S.seki = new Set(x.seki); S.safe = new Set(x.safe);
     S.history = x.history.map(h => ({ ...h, board: Int8Array.from(h.board) })); S.log = x.log;
     if (x.clock) S.clock = { kind: x.clock.kind, per: x.clock.per, rem: x.clock.rem.slice(), turnStart: Date.now() - (x.clock.elapsed || 0) };
-    S.timeLoss = x.tl || 0;
+    S.timeLoss = x.tl || 0; S.agree = x.agree || [0, 0, 0]; S.result = x.result || null;
+    if (S.mode === "score" && S.agree[1] && S.agree[2] && !S.result) finalizeScore();
   }
   function settingsNow(){
     return { sizeV: $("sel-size").value, komi: $("sel-komi").value, timeV: $("sel-time").value, gameType, target: $("sel-target").value,
@@ -1483,7 +1509,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     $("net-req").hidden = true;
     const who = net.pendingUndo; net.pendingUndo = 0;
     if (!who || !S.history.length) return;
-    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; }
+    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; S.result = null; }
     let h = S.history.pop(); Object.assign(S, h);
     while (S.turn !== who && S.history.length){ h = S.history.pop(); Object.assign(S, h); }
     S.hint = -1; if (S.clock) S.clock.turnStart = Date.now(); say("undone"); render();
@@ -1495,6 +1521,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (!on) return;
     const st = net.state;
     $("net-idle").hidden = !(st === "idle" || st === "lost" || st === "fail" || st === "full");
+    $("net-exit-row").hidden = !((st === "connected" || st === "lost") && (S.mode === "over" || net.watch || st === "lost"));
     $("net-invite").hidden = !(net.role === "host" && (st === "waiting" || st === "connected"));
     if (net.role === "host" && net.room) $("net-url").value = location.origin + location.pathname + "#join-" + net.room;
     if (document.activeElement !== $("net-name")) $("net-name").value = myName;
@@ -1789,7 +1816,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   function undo(){
     if (S.mode === "setup") return;
     if (S.mode === "score") return exitScoring();
-    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; }
+    if (S.mode === "over"){ S.mode = "play"; S.winner = 0; S.result = null; }
     if (thinking) return;
     let h = S.history.pop(); if (!h) return say("noUndo", "warn");
     Object.assign(S, h);
@@ -1877,7 +1904,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
 
   /* ---------- 整地 ---------- */
   function enterScoring(){
-    S.mode = "score"; S.dead = new Set(); S.seki = new Set(); S.safe = new Set(); S.hint = -1;
+    S.mode = "score"; S.dead = new Set(); S.seki = new Set(); S.safe = new Set(); S.hint = -1; S.agree = [0, 0, 0]; S.result = null;
     for (const r of RULES){
       if (!r.on || !r.scoringSeki) continue;
       for (const { g, region } of r.scoringSeki(r, S.board, S.size)){
@@ -1888,13 +1915,31 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     }
     render();
   }
-  function exitScoring(){ S.mode = "play"; S.dead.clear(); S.passes = 0; if (S.clock) S.clock.turnStart = Date.now(); say("backPlay"); render(); }
+  function exitScoring(){ S.agree = [0, 0, 0]; S.result = null; S.mode = "play"; S.dead.clear(); S.passes = 0; if (S.clock) S.clock.turnStart = Date.now(); say("backPlay"); render(); }
   function toggleDead(i){
     if (!STONE(S.board[i])) return;
     const g = groupAt(S.board, i, S.size), add = !S.dead.has(i);
     if (add && isImmortal(g)) return say("immortalNoDead", "warn", g.stones.length);
     if (add && S.safe.has(i)) return say("bentNoDead", "warn");
     g.stones.forEach(s => add ? S.dead.add(s) : S.dead.delete(s));
+    S.agree = [0, 0, 0];
+    render();
+  }
+  // オンライン：2人とも同意したら終局
+  function agree(){
+    if (S.mode !== "score" || !netLive() || net.watch || !net.myColor) return;
+    S.agree = S.agree || [0, 0, 0];
+    S.agree[net.myColor] = 1;
+    if (S.agree[1] && S.agree[2]) finalizeScore();
+    else { say("agreeSent", "good"); render(); }
+  }
+  function finalizeScore(){
+    const R = scoreResult(), k = komi(), sb = R.tb + R.pb, sw = R.tw + R.pw + k;
+    S.result = { tb: R.tb, pb: R.pb, tw: R.tw, pw: R.pw, k, sb, sw };
+    S.winner = sb === sw ? 0 : sb > sw ? 1 : 2;
+    S.mode = "over";
+    S.log.unshift([["finalLog", S.winner, Math.abs(sb - sw)]]);
+    say("finalSay", "good", S.winner, Math.abs(sb - sw));
     render();
   }
   function scoreResult(){
@@ -1945,7 +1990,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (S.mask) ctx.restore();
 
     // 陣地オーバーレイ
-    const scoring = S.mode === "score";
+    const scoring = S.mode === "score" || (S.mode === "over" && !!S.result);
     if (scoring){
       const { own, b } = scoreResult();
       for (let i = 0; i < b.length; i++){
@@ -2349,7 +2394,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
 
   function render(){
-    const scoring = S.mode === "score";
+    const scoring = S.mode === "score" || (S.mode === "over" && !!S.result);
     $("turn-dot").className = "dot " + (S.turn === 1 ? "b" : "w");
     const setup = S.mode === "setup", over = S.mode === "over";
     document.querySelectorAll("[data-type]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.type === gameType)));
@@ -2364,7 +2409,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     $("type-note").textContent = cap
       ? t("typeNoteCap", target(), chainOn.on, chainOn.n)
       : t("typeNoteTerr");
-    $("turn-text").textContent = scoring ? t("scoringT") : setup ? t("setupT") : over ? t("overT") : t("turnOf", S.turn);
+    $("turn-text").textContent = S.mode === "score" ? t("scoringT") : setup ? t("setupT") : over ? t("overT") : t("turnOf", S.turn);
     $("setup-sec").hidden = !setup;
     if (setup){
       const k = placedCount();
@@ -2392,11 +2437,21 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
 
     // 整地
     $("score-sec").hidden = !scoring;
-    $("b-score").textContent = scoring ? t("backToGame") : t("endCount");
+    const onlineScore = online() && net.state === "connected";
+    $("agree").hidden = !(S.mode === "score" && onlineScore);
+    $("final").hidden = !(S.mode === "over" && S.result);
+    if (S.mode === "score" && onlineScore){
+      const a = S.agree || [0, 0, 0];
+      $("agree-b").textContent = t(a[1] ? "agreed" : "notAgreed"); $("agree-w").textContent = t(a[2] ? "agreed" : "notAgreed");
+      $("b-agree").disabled = net.watch || !!(a[net.myColor]);
+      $("b-agree").textContent = a[net.myColor] ? t("agreeDone") : t("agreeBtn");
+    }
+    if (S.mode === "over" && S.result) $("final").textContent = t("finalDone");
+    $("b-score").textContent = S.mode === "score" ? t("backToGame") : t("endCount");
     $("b-pass").disabled = scoring || setup || over;
     $("b-score").disabled = setup || over;
     if (scoring){
-      const R = scoreResult(), sb = R.tb + R.pb, sw = R.tw + R.pw + k;
+      const R = S.mode === "over" && S.result ? S.result : scoreResult(), sb = R.tb + R.pb, sw = R.tw + R.pw + k;
       $("result").innerHTML = `
         <span class="dot b"></span><span>${t("terrL")} <span class="num">${R.tb}</span> + ${t("capsL")} <span class="num">${R.pb}</span></span><span class="tot">${sb}</span>
         <span class="dot w"></span><span>${t("terrL")} <span class="num">${R.tw}</span> + ${t("capsL")} <span class="num">${R.pw}</span>${k ? ` + ${t("komiAdd")} <span class="num">${k}</span>` : ""}</span><span class="tot">${sw}</span>`;
@@ -2506,6 +2561,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (lobby.isHost) lobbyPush(); else lobbySend({ type: "name", name: myName });
     netUI();
   });
+  $("b-agree").addEventListener("click", agree);
+  $("b-net-exit").addEventListener("click", () => { netReset(); setNet("idle"); startGame(); say("netExited"); });
   $("b-net-copy").addEventListener("click", () => {
     const v = $("net-url").value;
     const done = () => say("netCopied", "good");

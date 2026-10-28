@@ -72,6 +72,12 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation;cursor:poi
 .roster .dot{width:14px;height:14px}
 .roster .tag{font-size:11px;padding:1px 6px;border-radius:9px;border:1px solid var(--line);color:var(--muted);flex:none}
 .roster .tag.me{border-color:var(--accent);color:var(--accent)}
+.lobby{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.lobby-head{display:flex;align-items:baseline;gap:8px}
+.lobby-head b{font-size:13.5px}
+.roster li .btn{margin-left:auto}
+.roster .tag.free{border-color:#3d8b5a;color:#3d8b5a}
+.reqbox{padding:8px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--accent)}
 #net-req{padding:8px 10px;border-radius:7px;background:var(--bg);border:1px solid var(--accent)}
 .basics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 @media (max-width:560px){.basics{grid-template-columns:minmax(0,1fr)}}
@@ -203,6 +209,21 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
         </div>
         <div class="sub" id="cpu-note" hidden></div>
         <div class="net" id="net-opts" hidden>
+          <div class="lobby" id="lobby" hidden>
+            <div class="lobby-head"><b data-i="lobbyTitle">オンラインの人</b><span class="sub" id="lobby-state"></span></div>
+            <ul class="roster" id="lobby-list"></ul>
+            <div class="sub" id="lobby-empty" hidden data-i="lobbyEmpty">今はほかに誰もいません。このまま待つか、下の「部屋を作る」でURLを送って招待できます。</div>
+            <div class="row reqbox" id="lobby-in" hidden>
+              <span id="lobby-in-text"></span>
+              <button class="btn small primary" id="b-ch-ok" type="button" data-i="chOk">受ける</button>
+              <button class="btn small" id="b-ch-no" type="button" data-i="chNo">断る</button>
+            </div>
+            <div class="row reqbox" id="lobby-out" hidden>
+              <span id="lobby-out-text"></span>
+              <button class="btn small" id="b-ch-cancel" type="button" data-i="chCancel">取り消す</button>
+            </div>
+          </div>
+          <div class="sub" data-i="orInvite">URLで招待する場合：</div>
           <div class="row" id="net-idle">
             <label for="sel-net-color" data-i="netColorL">あなたの色</label>
             <select id="sel-net-color"><option value="1" data-i="black">黒</option><option value="2" data-i="white">白</option></select>
@@ -345,6 +366,14 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "変則・小（7〜9路くらい）", irrM: "変則・中（13路くらい）", irrL: "変則・大（19路くらい）", reroll: "別の形にする",
       komiL: "コミ", none: "なし", optKomi: n => `${n}目`,
       hcapL: "置き石", hcapNone: "なし（互先）", optHcap: n => `${KAN[n]}子局`,
+      lobbyTitle: "オンラインの人", lobbyStarting: "接続しています…", lobbyFail: "接続できませんでした",
+      lobbyCount: n => `${n}人`, lobbyFree: "対局できます", lobbyPlaying: "対局中", chSend: "対局を申し込む",
+      lobbyEmpty: "今はほかに誰もいません。このまま待つか、下の「部屋を作る」でURLを送って招待できます。", orInvite: "URLで招待する場合：",
+      chOk: "受ける", chNo: "断る", chCancel: "取り消す",
+      chFrom: (n, info, c) => `${n}さんから対局の申し込み（${info}${c ? `・あなたは${col(c)}` : ""}）`,
+      chWaiting: n => `${n}さんに申し込み中です…`, chIncoming: n => `${n}さんから対局の申し込みが届きました`,
+      chAccepted: n => `${n}さんが申し込みを受けました。対局を始めます`, chDeclined: n => `${n}さんに断られました`,
+      chBusy: n => `${n}さんは今は受けられません`, chGone: n => `${n}さんはもういません`, chCancelled: n => `${n}さんが申し込みを取り消しました`,
       netNameL: "あなたの名前", netWatchTag: "観戦", netHostTag: "部屋主", netMeTag: "あなた",
       netCount: (n, w) => `部屋にいる人：${n}人${w ? `（うち観戦 ${w}人）` : ""}`,
       netJoinedPlayer: n => `${n}さんが対局相手として入りました`, netJoinedWatch: n => `${n}さんが観戦に入りました`,
@@ -452,6 +481,14 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "Irregular S (≈ 7–9)", irrM: "Irregular M (≈ 13)", irrL: "Irregular L (≈ 19)", reroll: "New shape",
       komiL: "Komi", none: "None", optKomi: n => `${n}`,
       hcapL: "Handicap", hcapNone: "None (even)", optHcap: n => pl(n, "stone"),
+      lobbyTitle: "Players online", lobbyStarting: "Connecting…", lobbyFail: "Couldn't connect",
+      lobbyCount: n => `${n}`, lobbyFree: "available", lobbyPlaying: "in a game", chSend: "Challenge",
+      lobbyEmpty: "Nobody else is here right now. Wait here, or create a room below and send the link.", orInvite: "To invite with a link:",
+      chOk: "Accept", chNo: "Decline", chCancel: "Cancel",
+      chFrom: (n, info, c) => `${n} challenges you (${info}${c ? `, you play ${col(c)}` : ""})`,
+      chWaiting: n => `Waiting for ${n} to answer…`, chIncoming: n => `${n} sent you a challenge`,
+      chAccepted: n => `${n} accepted. Starting the game`, chDeclined: n => `${n} declined`,
+      chBusy: n => `${n} can't accept right now`, chGone: n => `${n} is no longer online`, chCancelled: n => `${n} cancelled the challenge`,
       netNameL: "Your name", netWatchTag: "watching", netHostTag: "host", netMeTag: "you",
       netCount: (n, w) => `In this room: ${n}${w ? ` (${w} watching)` : ""}`,
       netJoinedPlayer: n => `${n} joined as your opponent`, netJoinedWatch: n => `${n} is now watching`,
@@ -1253,12 +1290,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     Object.assign(net, { peer: null, conn: null, conns: [], role: null, myColor: 0, watch: false, room: "", state: "idle", last: "", roster: [] });
   }
   function setNet(st){ net.state = st; netUI(); }
-  async function hostRoom(){
+  async function hostRoom(code){
     netReset();
     $("sel-hcap").value = "0";
     startGame();
     try { await loadPeer(); } catch(e){ return setNet("fail"); }
-    net.role = "host"; net.room = randRoom(); net.myColor = parseInt($("sel-net-color").value);
+    net.role = "host"; net.room = typeof code === "string" ? code : randRoom(); net.myColor = parseInt($("sel-net-color").value);
     setNet("starting");
     net.peer = new Peer(ROOM_PREFIX + net.room);
     net.peer.on("open", () => { setNet("waiting"); makeRoster(); });
@@ -1272,7 +1309,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     net.peer.on("error", () => { if (!net.conns.length) setNet("fail"); });
     render();
   }
-  async function joinRoom(code){
+  async function joinRoom(code, retries = 0){
     netReset();
     opp = "online";
     try { await loadPeer(); } catch(e){ return setNet("fail"); }
@@ -1287,7 +1324,12 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       c.on("close", () => { if (net.conn === c) setNet("lost"); });
       c.on("error", () => { if (net.conn === c) setNet("lost"); });
     });
-    net.peer.on("error", () => setNet(net.conn && net.conn.open ? "lost" : "fail"));
+    net.peer.on("error", e => {
+      // 申し込みを受けた直後は、相手の部屋の準備が少し遅れることがあるので、何回か入り直す
+      if (e && e.type === "peer-unavailable" && retries > 0 && !(net.conn && net.conn.open)){ setTimeout(() => joinRoom(code, retries - 1), 1500); return; }
+      setNet(net.conn && net.conn.open ? "lost" : "fail");
+    });
+    lobbyStart();
     render();
   }
   function snapshot(){
@@ -1426,6 +1468,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     S.hint = -1; say("undone"); render();
   }
   function netUI(){
+    lobbyUI();
     const on = online();
     $("net-opts").hidden = !on;
     if (!on) return;
@@ -1454,6 +1497,179 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     ["sel-size", "sel-komi", "sel-hcap", "sel-target", "b-new", "b-reroll"].forEach(id => { $(id).disabled = lock || (id === "sel-hcap" && on); });
     document.querySelectorAll("[data-type], #rules input").forEach(el => el.disabled = lock);
     ["b-pass", "b-undo", "b-hint", "b-score"].forEach(id => { if (net.watch && st === "connected") $(id).disabled = true; });
+  }
+
+  /* ---------- オンラインの人（ロビー） ---------- */
+  // サーバーを使わず、ロビーを開いている誰か1人のページが「受付係」になって名簿を配る。受付係がいなくなったら別の人が引き継ぐ
+  const LOBBY_ID = "tgb-lobby-v1";
+  const lobby = { peer: null, isHost: false, conn: null, clients: new Map(), list: [], myId: "", out: null, inc: null, seen: 0, status: "", state: "off", retry: null };
+  const myStatus = () => net.state === "connected" ? "playing" : "free";
+  function lobbyStart(){
+    if (lobby.peer || lobby.state === "starting") return;
+    lobby.state = "starting"; lobbyUI();
+    loadPeer().then(lobbyClaim, () => { lobby.state = "fail"; lobbyUI(); });
+  }
+  function lobbyStop(){
+    clearTimeout(lobby.retry);
+    try { lobby.conn && lobby.conn.close(); } catch(e){}
+    lobby.clients.forEach(x => { try { x.c.close(); } catch(e){} });
+    try { lobby.peer && lobby.peer.destroy(); } catch(e){}
+    Object.assign(lobby, { peer: null, isHost: false, conn: null, clients: new Map(), list: [], myId: "", out: null, inc: null, state: "off" });
+    lobbyUI();
+  }
+  function lobbyRestart(){
+    const keepOut = lobby.out, keepInc = lobby.inc;
+    try { lobby.conn && lobby.conn.close(); } catch(e){}
+    try { lobby.peer && lobby.peer.destroy(); } catch(e){}
+    Object.assign(lobby, { peer: null, isHost: false, conn: null, clients: new Map(), list: [], myId: "", state: "starting" });
+    lobby.out = keepOut; lobby.inc = keepInc;
+    clearTimeout(lobby.retry);
+    lobby.retry = setTimeout(() => { if (online()) lobbyClaim(); else lobbyStop(); }, 400 + Math.random() * 2500);
+    lobbyUI();
+  }
+  // まず受付係になれるか試し、もういれば受付係につなぐ
+  function lobbyClaim(){
+    if (!online()) return lobbyStop();
+    const p = new Peer(LOBBY_ID);
+    let settled = false;
+    p.on("open", id => {
+      settled = true;
+      Object.assign(lobby, { peer: p, isHost: true, myId: id, state: "on", clients: new Map() });
+      p.on("connection", c => {
+        c.on("data", m => lobbyHostData(c, m));
+        c.on("close", () => { lobby.clients.delete(c.peer); lobbyPush(); });
+        c.on("error", () => { lobby.clients.delete(c.peer); lobbyPush(); });
+      });
+      lobbyPush();
+    });
+    p.on("error", e => {
+      if (!settled && e.type === "unavailable-id"){ settled = true; try { p.destroy(); } catch(x){} lobbyJoin(); }
+      else if (!settled){ settled = true; lobby.state = "fail"; lobbyUI(); }
+    });
+    p.on("disconnected", () => { try { p.reconnect(); } catch(x){} });
+  }
+  function lobbyJoin(){
+    const p = new Peer();
+    p.on("open", id => {
+      Object.assign(lobby, { peer: p, isHost: false, myId: id });
+      const c = p.connect(LOBBY_ID, { reliable: true });
+      lobby.conn = c;
+      c.on("open", () => { lobby.state = "on"; lobby.seen = Date.now(); c.send({ type: "join", name: myName, status: myStatus() }); lobbyUI(); });
+      c.on("data", lobbyClientData);
+      c.on("close", () => { if (lobby.conn === c) lobbyRestart(); });
+      c.on("error", () => { if (lobby.conn === c) lobbyRestart(); });
+    });
+    p.on("error", e => { if (lobby.peer === p || !lobby.peer) lobbyRestart(); });
+  }
+  // 受付係の処理
+  function lobbyHostData(c, m){
+    if (!m || !m.type) return;
+    const id = c.peer, x = lobby.clients.get(id);
+    if (m.type === "join"){ lobby.clients.set(id, { c, name: String(m.name || "ゲスト").slice(0, 16), status: m.status === "playing" ? "playing" : "free", seen: Date.now() }); lobbyPush(); return; }
+    if (!x) return;
+    x.seen = Date.now();
+    if (m.type === "ping") return;
+    if (m.type === "status"){ x.status = m.status === "playing" ? "playing" : "free"; lobbyPush(); }
+    else if (m.type === "name"){ x.name = String(m.name || "ゲスト").slice(0, 16); lobbyPush(); }
+    else if (m.type === "ch" || m.type === "chAns" || m.type === "chCancel") lobbyRoute({ ...m, from: id, fromName: x.name });
+  }
+  function lobbyRoute(m){
+    if (m.to === lobby.myId) return lobbyMsg(m);
+    const t = lobby.clients.get(m.to);
+    if (t && t.c.open) t.c.send(m);
+    else if (m.from === lobby.myId) lobbyMsg({ type: "chAns", from: m.to, ok: false, gone: true });
+    else { const f = lobby.clients.get(m.from); if (f && f.c.open && m.type === "ch") f.c.send({ type: "chAns", from: m.to, ok: false, gone: true }); }
+  }
+  function lobbyPush(){
+    if (!lobby.isHost) return;
+    const list = [{ id: lobby.myId, name: myName, status: myStatus() }];
+    lobby.clients.forEach((x, id) => { if (x.c.open) list.push({ id, name: x.name, status: x.status }); });
+    lobby.list = list;
+    lobby.clients.forEach(x => { if (x.c.open) x.c.send({ type: "roster", list }); });
+    lobbyUI();
+  }
+  // 参加者側の処理
+  function lobbyClientData(m){
+    if (!m || !m.type) return;
+    lobby.seen = Date.now();
+    if (m.type === "roster"){ lobby.list = m.list || []; lobbyUI(); }
+    else lobbyMsg(m);
+  }
+  function lobbySend(m){
+    if (lobby.isHost) lobbyRoute({ ...m, from: lobby.myId, fromName: myName });
+    else if (lobby.conn && lobby.conn.open) lobby.conn.send(m);
+  }
+  // 対局の申し込み
+  function settingsLabel(){
+    const v = $("sel-size").value, size = v[0] === "r" ? t({ rs: "irrS", rm: "irrM", rl: "irrL" }[v]) : t("optSize", +v);
+    return `${size}・${gameType === "capture" ? t("tCap") + "（" + t("optStones", target()) + "）" : t("tTerr")}・${t("komiL")}${$("sel-komi").value}`;
+  }
+  function challenge(id){
+    const who = lobby.list.find(p => p.id === id);
+    if (!who || lobby.out || net.state === "connected") return;
+    const room = randRoom();
+    lobby.out = { to: id, name: who.name, room };
+    lobbySend({ type: "ch", to: id, name: myName, info: settingsLabel(), room, color: parseInt($("sel-net-color").value) });
+    lobbyUI();
+  }
+  function lobbyMsg(m){
+    if (m.type === "ch"){
+      if (lobby.inc || lobby.out || net.state === "connected") return lobbySend({ type: "chAns", to: m.from, ok: false, busy: true });
+      lobby.inc = { from: m.from, name: String(m.name || m.fromName || "ゲスト").slice(0, 16), info: String(m.info || "").slice(0, 80), room: m.room, color: m.color };
+      say("chIncoming", "good", lobby.inc.name);
+      lobbyUI();
+    } else if (m.type === "chAns"){
+      if (!lobby.out || lobby.out.to !== m.from) return;
+      const o = lobby.out; lobby.out = null;
+      if (m.ok){ say("chAccepted", "good", o.name); hostRoom(o.room); }
+      else say(m.busy ? "chBusy" : m.gone ? "chGone" : "chDeclined", "warn", o.name);
+      lobbyUI();
+    } else if (m.type === "chCancel"){
+      if (lobby.inc && lobby.inc.from === m.from){ say("chCancelled", "warn", lobby.inc.name); lobby.inc = null; lobbyUI(); }
+    }
+  }
+  function acceptChallenge(){
+    const c = lobby.inc; if (!c) return;
+    lobby.inc = null;
+    lobbySend({ type: "chAns", to: c.from, ok: true });
+    lobbyUI();
+    joinRoom(c.room, 8);
+  }
+  // 生存確認と状態の更新
+  setInterval(() => {
+    if (lobby.state !== "on") return;
+    const now = Date.now();
+    if (lobby.isHost){
+      lobby.clients.forEach((x, id) => { if (now - x.seen > 20000){ try { x.c.close(); } catch(e){} lobby.clients.delete(id); } });
+      lobbyPush();
+    } else if (lobby.conn && lobby.conn.open){
+      lobby.conn.send({ type: "ping" });
+      if (now - lobby.seen > 20000) lobbyRestart();
+    }
+    const st = myStatus();
+    if (st !== lobby.status){ lobby.status = st; if (lobby.isHost) lobbyPush(); else lobbySend({ type: "status", status: st }); }
+  }, 5000);
+  function lobbyUI(){
+    const box = $("lobby"); if (!box) return;
+    box.hidden = !online();
+    if (!online()) return;
+    const st = lobby.state;
+    $("lobby-state").textContent = st === "starting" ? t("lobbyStarting") : st === "fail" ? t("lobbyFail") : t("lobbyCount", lobby.list.length);
+    const others = lobby.list.filter(p => p.id !== lobby.myId);
+    const busy = !!lobby.out || net.state === "connected";
+    const ul = $("lobby-list");
+    ul.innerHTML = lobby.list.map(p => {
+      const me = p.id === lobby.myId;
+      const tag = me ? `<span class="tag me">${t("netMeTag")}</span>` : `<span class="tag ${p.status === "playing" ? "" : "free"}">${t(p.status === "playing" ? "lobbyPlaying" : "lobbyFree")}</span>`;
+      const btn = !me && p.status !== "playing" ? `<button class="btn small" type="button" data-ch="${p.id.replace(/[^\w-]/g, "")}" ${busy ? "disabled" : ""}>${t("chSend")}</button>` : "";
+      return `<li>${tag}<span class="nm"></span>${btn}</li>`;
+    }).join("");
+    [...ul.querySelectorAll(".nm")].forEach((el, k) => el.textContent = lobby.list[k].name);
+    $("lobby-empty").hidden = !(st === "on" && !others.length);
+    $("lobby-in").hidden = !lobby.inc;
+    if (lobby.inc) $("lobby-in-text").textContent = t("chFrom", lobby.inc.name, lobby.inc.info, lobby.inc.color ? 3 - lobby.inc.color : 0);
+    $("lobby-out").hidden = !lobby.out;
+    if (lobby.out) $("lobby-out-text").textContent = t("chWaiting", lobby.out.name);
   }
 
   /* ---------- 置き石 ---------- */
@@ -2201,14 +2417,20 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   $("b-hint").addEventListener("click", hint);
   document.querySelectorAll("[data-opp]").forEach(b => b.addEventListener("click", () => {
     if (opp === b.dataset.opp) return;
-    if (online()) netReset();
+    if (online()){ netReset(); lobbyStop(); }
     opp = b.dataset.opp; if (opp !== "online") store.set("go-opp", opp); startGame();
+    if (online()) lobbyStart();
   }));
-  $("b-net-host").addEventListener("click", hostRoom);
+  $("b-net-host").addEventListener("click", () => hostRoom());
+  $("lobby-list").addEventListener("click", e => { const b = e.target.closest("[data-ch]"); if (b) challenge(b.dataset.ch); });
+  $("b-ch-ok").addEventListener("click", acceptChallenge);
+  $("b-ch-no").addEventListener("click", () => { const c = lobby.inc; lobby.inc = null; if (c) lobbySend({ type: "chAns", to: c.from, ok: false }); lobbyUI(); });
+  $("b-ch-cancel").addEventListener("click", () => { const o = lobby.out; lobby.out = null; if (o) lobbySend({ type: "chCancel", to: o.to }); lobbyUI(); });
   $("net-name").addEventListener("change", e => {
     myName = (e.target.value || "").trim().slice(0, 16) || myName; store.set("go-name", myName);
     if (net.role === "host"){ makeRoster(); broadcast(); }
     else if (net.conn && net.conn.open) net.conn.send({ type: "name", name: myName });
+    if (lobby.isHost) lobbyPush(); else lobbySend({ type: "name", name: myName });
     netUI();
   });
   $("b-net-copy").addEventListener("click", () => {

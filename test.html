@@ -56,6 +56,15 @@ header p{margin:0;color:var(--muted);max-width:60ch;flex:1 1 320px}
 .board{position:relative;width:100%;aspect-ratio:1;max-width:100%;border-radius:6px;overflow:hidden;
   box-shadow:0 1px 0 rgba(0,0,0,.08),0 12px 30px -12px rgba(30,20,5,.45)}
 canvas{display:block;width:100%;height:100%;touch-action:manipulation;cursor:pointer}
+.clocks{display:flex;align-items:center;gap:10px}
+.clock{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;border:2px solid var(--line);background:var(--surface);font-size:20px;font-weight:600;min-width:7.5em}
+.clock .num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.clock.on{border-color:var(--accent)}
+.clock.low{border-color:var(--warn);color:var(--warn)}
+.clock.low.on{animation:lowpulse 1s steps(2) infinite}
+@keyframes lowpulse{50%{background:var(--bg)}}
+.clock-kind{flex:1;text-align:center;font-size:12.5px;color:var(--muted)}
+#clock-w{justify-content:flex-end}
 .toast{min-height:1.6em;font-size:14px;color:var(--muted)}
 .toast.warn{color:var(--warn);font-weight:500}
 .toast.good{color:var(--accent);font-weight:500}
@@ -166,6 +175,11 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   <div class="app">
     <div class="board-col">
       <div class="board"><canvas id="cv" data-ia="cvLabel" aria-label="碁盤"></canvas></div>
+      <div class="clocks" id="clocks" hidden>
+        <div class="clock" id="clock-b"><span class="dot b"></span><span class="num" id="clock-b-t">0:00</span></div>
+        <span class="clock-kind" id="clock-kind"></span>
+        <div class="clock" id="clock-w"><span class="dot w"></span><span class="num" id="clock-w-t">0:00</span></div>
+      </div>
       <div class="toast" id="toast" role="status"></div>
       <div class="basics">
         <div><b data-i="b1t">交互に打つ</b><span data-i="b1d">黒から先に、線の交点へ1つずつ石を置きます。</span></div>
@@ -318,6 +332,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
           <button class="btn small" id="b-reroll" type="button" hidden data-i="reroll">別の形にする</button>
           <label for="sel-komi" data-i="komiL">コミ</label>
           <select id="sel-komi"><option value="0" data-i="none">なし</option><option value="0.5" data-i="optKomi" data-n="0.5">0.5目</option><option value="5.5" selected data-i="optKomi" data-n="5.5">5.5目</option><option value="6.5" data-i="optKomi" data-n="6.5">6.5目</option></select>
+          <label for="sel-time" data-i="timeL">持ち時間</label>
+          <select id="sel-time"><option value="0" data-i="none">なし</option><option value="m10" data-i="tMove" data-n="10">1手10秒</option><option value="m15" data-i="tMove" data-n="15">1手15秒</option><option value="m20" data-i="tMove" data-n="20">1手20秒</option><option value="m30" data-i="tMove" data-n="30">1手30秒</option><option value="g180" data-i="tSudden">3分切れ負け</option></select>
           <label for="sel-hcap" data-i="hcapL">置き石</label>
           <select id="sel-hcap"><option value="0" data-i="hcapNone">なし（互先）</option><option value="2" data-i="optHcap" data-n="2">二子局</option><option value="3" data-i="optHcap" data-n="3">三子局</option><option value="4" data-i="optHcap" data-n="4">四子局</option><option value="5" data-i="optHcap" data-n="5">五子局</option><option value="6" data-i="optHcap" data-n="6">六子局</option><option value="7" data-i="optHcap" data-n="7">七子局</option><option value="8" data-i="optHcap" data-n="8">八子局</option><option value="9" data-i="optHcap" data-n="9">九子局</option></select>
         </div>
@@ -366,6 +382,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "変則・小（7〜9路くらい）", irrM: "変則・中（13路くらい）", irrL: "変則・大（19路くらい）", reroll: "別の形にする",
       komiL: "コミ", none: "なし", optKomi: n => `${n}目`,
       hcapL: "置き石", hcapNone: "なし（互先）", optHcap: n => `${KAN[n]}子局`,
+      timeL: "持ち時間", tMove: n => `1手${n}秒`, tSudden: "3分切れ負け",
+      timeLoss: c => `${col(c)}の時間切れ。${col(3 - c)}の勝ちです`, timeLog: c => `${col(c)}の時間切れ`,
       lobbyTitle: "オンラインの人", lobbyStarting: "接続しています…", lobbyFail: "接続できませんでした",
       lobbyCount: n => `${n}人`, lobbyFree: "対局できます", lobbyPlaying: "対局中", chSend: "対局を申し込む",
       lobbyEmpty: "今はほかに誰もいません。このまま待つか、下の「部屋を作る」でURLを送って招待できます。", orInvite: "URLで招待する場合：",
@@ -481,6 +499,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
       irrS: "Irregular S (≈ 7–9)", irrM: "Irregular M (≈ 13)", irrL: "Irregular L (≈ 19)", reroll: "New shape",
       komiL: "Komi", none: "None", optKomi: n => `${n}`,
       hcapL: "Handicap", hcapNone: "None (even)", optHcap: n => pl(n, "stone"),
+      timeL: "Time", tMove: n => `${n}s per move`, tSudden: "3 min sudden death",
+      timeLoss: c => `${col(c)} ran out of time. ${col(3 - c)} wins`, timeLog: c => `${col(c)} lost on time`,
       lobbyTitle: "Players online", lobbyStarting: "Connecting…", lobbyFail: "Couldn't connect",
       lobbyCount: n => `${n}`, lobbyFree: "available", lobbyPlaying: "in a game", chSend: "Challenge",
       lobbyEmpty: "Nobody else is here right now. Wait here, or create a room below and send the link.", orInvite: "To invite with a link:",
@@ -619,7 +639,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     return st;
   }
   function newStateBase(size){
-    return { size, board: new Int8Array(size*size), turn: 1, caps: [0,0,0], last: -1, passes: 0,
+    return { size, board: new Int8Array(size*size), turn: 1, caps: [0,0,0], last: -1, passes: 0, clock: makeClock(),
              history: [], mode: "play", dead: new Set(), seki: new Set(), safe: new Set(), hint: -1, log: [] };
   }
   let view = store.get("go-view") || "influence";
@@ -696,6 +716,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
 
     pushHistory();
     S.board = nb; S.caps[me] += taken; S.last = i; S.passes = 0; S.turn = opp; S.hint = -1;
+    clockOnMove(me);
     const entry = [["move", me, coord(i)]];
     if (flipped) entry.push(["flipLog", flipped]);
     if (taken) entry.push(["took", taken]);
@@ -1335,20 +1356,23 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   function snapshot(){
     return { size: S.size, mask: S.mask ? Array.from(S.mask) : null, board: Array.from(S.board), turn: S.turn, caps: S.caps.slice(),
       last: S.last, passes: S.passes, mode: S.mode, winner: S.winner || 0, dead: [...S.dead], seki: [...(S.seki || [])], safe: [...(S.safe || [])],
-      history: S.history.map(h => ({ ...h, board: Array.from(h.board) })), log: S.log };
+      history: S.history.map(h => ({ ...h, board: Array.from(h.board) })), log: S.log,
+      clock: S.clock ? { kind: S.clock.kind, per: S.clock.per, rem: S.clock.rem, elapsed: S.mode === "play" ? Date.now() - S.clock.turnStart : 0 } : null, tl: S.timeLoss || 0 };
   }
   function restore(x){
     S = newState(x.size, x.mask ? Uint8Array.from(x.mask) : null);
     S.board = Int8Array.from(x.board); S.turn = x.turn; S.caps = x.caps; S.last = x.last; S.passes = x.passes;
     S.mode = x.mode; S.winner = x.winner; S.dead = new Set(x.dead); S.seki = new Set(x.seki); S.safe = new Set(x.safe);
     S.history = x.history.map(h => ({ ...h, board: Int8Array.from(h.board) })); S.log = x.log;
+    if (x.clock) S.clock = { kind: x.clock.kind, per: x.clock.per, rem: x.clock.rem.slice(), turnStart: Date.now() - (x.clock.elapsed || 0) };
+    S.timeLoss = x.tl || 0;
   }
   function settingsNow(){
-    return { sizeV: $("sel-size").value, komi: $("sel-komi").value, gameType, target: $("sel-target").value,
+    return { sizeV: $("sel-size").value, komi: $("sel-komi").value, timeV: $("sel-time").value, gameType, target: $("sel-target").value,
       rules: RULES.map(r => ({ id: r.id, on: r.on, n: r.n })) };
   }
   function applySettings(st){
-    $("sel-size").value = st.sizeV; $("sel-komi").value = st.komi; $("sel-target").value = st.target; gameType = st.gameType;
+    $("sel-size").value = st.sizeV; $("sel-komi").value = st.komi; if (st.timeV) $("sel-time").value = st.timeV; $("sel-target").value = st.target; gameType = st.gameType;
     st.rules.forEach(x => { const r = RULES.find(r => r.id === x.id); if (r){ r.on = x.on; if (x.n != null) r.n = x.n; } });
     renderRules();
   }
@@ -1465,10 +1489,10 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (S.mode === "over"){ S.mode = "play"; S.winner = 0; }
     let h = S.history.pop(); Object.assign(S, h);
     while (S.turn !== who && S.history.length){ h = S.history.pop(); Object.assign(S, h); }
-    S.hint = -1; say("undone"); render();
+    S.hint = -1; if (S.clock) S.clock.turnStart = Date.now(); say("undone"); render();
   }
   function netUI(){
-    lobbyUI();
+    lobbyUI(); clockUI();
     const on = online();
     $("net-opts").hidden = !on;
     if (!on) return;
@@ -1494,7 +1518,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     [...list.querySelectorAll(".nm")].forEach((el, k) => el.textContent = people[k].name);
     $("net-count").textContent = people.length ? t("netCount", people.length, people.filter(p => p.role === "watch").length) : "";
     const lock = net.role === "guest" && st === "connected";
-    ["sel-size", "sel-komi", "sel-hcap", "sel-target", "b-new", "b-reroll"].forEach(id => { $(id).disabled = lock || (id === "sel-hcap" && on); });
+    ["sel-size", "sel-komi", "sel-time", "sel-hcap", "sel-target", "b-new", "b-reroll"].forEach(id => { $(id).disabled = lock || (id === "sel-hcap" && on); });
     document.querySelectorAll("[data-type], #rules input").forEach(el => el.disabled = lock);
     ["b-pass", "b-undo", "b-hint", "b-score"].forEach(id => { if (net.watch && st === "connected") $(id).disabled = true; });
   }
@@ -1672,6 +1696,58 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     if (lobby.out) $("lobby-out-text").textContent = t("chWaiting", lobby.out.name);
   }
 
+  /* ---------- 持ち時間 ---------- */
+  function makeClock(){
+    const el = document.getElementById("sel-time"), v = el ? el.value : "0";
+    if (v[0] === "m") return { kind: "move", per: parseInt(v.slice(1)) * 1000, rem: [0, 0, 0], turnStart: Date.now() };
+    if (v[0] === "g") return { kind: "sudden", per: 0, rem: [0, parseInt(v.slice(1)) * 1000, parseInt(v.slice(1)) * 1000], turnStart: Date.now() };
+    return { kind: "none", per: 0, rem: [0, 0, 0], turnStart: Date.now() };
+  }
+  function clockOnMove(mover){
+    const c = S.clock; if (!c || c.kind === "none") return;
+    if (c.kind === "sudden") c.rem[mover] = Math.max(0, c.rem[mover] - (Date.now() - c.turnStart));
+    c.turnStart = Date.now();
+  }
+  function timeLeft(color){
+    const c = S.clock; if (!c || c.kind === "none") return Infinity;
+    const run = S.mode === "play" && S.turn === color ? Date.now() - c.turnStart : 0;
+    return c.kind === "move" ? (S.turn === color ? c.per - run : c.per) : c.rem[color] - run;
+  }
+  const fmt = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+  function timeLoss(color){
+    if (S.mode !== "play") return;
+    pushHistory();
+    S.mode = "over"; S.winner = 3 - color; S.timeLoss = color;
+    S.log.unshift([["timeLog", color]]);
+    say("timeLoss", "warn", color);
+    render();
+  }
+  function clockUI(){
+    const c = S && S.clock, on = !!c && c.kind !== "none" && S.mode !== "setup";
+    $("clocks").hidden = !on;
+    if (!on) return;
+    $("clock-kind").textContent = c.kind === "move" ? t("tMove", c.per / 1000) : t("tSudden");
+    for (const col of [1, 2]){
+      const ms = timeLeft(col), el = $(col === 1 ? "clock-b" : "clock-w");
+      $(col === 1 ? "clock-b-t" : "clock-w-t").textContent = fmt(ms);
+      el.classList.toggle("on", S.mode === "play" && S.turn === col);
+      el.classList.toggle("low", ms <= (c.kind === "move" ? 5000 : 20000));
+    }
+  }
+  setInterval(() => {
+    if (!S || !S.clock || S.clock.kind === "none") return clockUI();
+    clockUI();
+    if (S.mode !== "play") return;
+    const left = timeLeft(S.turn);
+    if (left > 0) return;
+    // 時間切れの判定：オンラインでは自分の時計は自分で、相手の時計は少し待ってから判定する（観戦者は判定しない）
+    if (online() && net.state === "connected"){
+      if (net.watch) return;
+      if (S.turn !== net.myColor && left > -3000) return;
+    }
+    timeLoss(S.turn);
+  }, 200);
+
   /* ---------- 置き石 ---------- */
   function startGame(){
     const sv = $("sel-size").value;
@@ -1708,7 +1784,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   function finishSetup(){
     const k = placedCount();
     if (k !== S.hcap) return say("hcRemain", "warn", S.hcap - k);
-    S.mode = "play"; S.turn = 2; S.history = [];
+    S.mode = "play"; S.turn = 2; S.history = []; S.clock.turnStart = Date.now();
     S.log = [[["hcLog", S.hcap, [...S.board.keys()].filter(i => S.board[i] === 1).map(coord)]]];
     say("hcGo", "good", S.hcap);
     render();
@@ -1722,12 +1798,13 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     let h = S.history.pop(); if (!h) return say("noUndo", "warn");
     Object.assign(S, h);
     while (opp === "cpu" && S.turn === cpuColor() && S.history.length){ h = S.history.pop(); Object.assign(S, h); }
-    S.hint = -1; say("undone"); render();
+    S.hint = -1; if (S.clock) S.clock.turnStart = Date.now(); say("undone"); render();
   }
   function pass(){
     if (S.mode !== "play") return;
     pushHistory();
     S.log.unshift([["passLog", S.turn]]); S.passes++; S.turn = 3 - S.turn; S.last = -1;
+    clockOnMove(3 - S.turn);
     if (S.passes >= 2){
       if (gameType === "capture") say("capFallback", "", target()); else say("bothPass");
       enterScoring();
@@ -1815,7 +1892,7 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     }
     render();
   }
-  function exitScoring(){ S.mode = "play"; S.dead.clear(); S.passes = 0; say("backPlay"); render(); }
+  function exitScoring(){ S.mode = "play"; S.dead.clear(); S.passes = 0; if (S.clock) S.clock.turnStart = Date.now(); say("backPlay"); render(); }
   function toggleDead(i){
     if (!STONE(S.board[i])) return;
     const g = groupAt(S.board, i, S.size), add = !S.dead.has(i);
@@ -2467,6 +2544,8 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
     startGame();
   });
   $("sel-hcap").addEventListener("change", startGame);
+  { const tv = store.get("go-time"); if (tv) { $("sel-time").value = tv; if (S) S.clock = makeClock(); } }
+  $("sel-time").addEventListener("change", e => { store.set("go-time", e.target.value); startGame(); });
   $("b-hc-star").addEventListener("click", () => { clearBlack(); (S.mask ? spreadPoints(S.hcap) : starPoints(S.size, S.hcap)).forEach(i => S.board[i] = 1); say("starPlaced"); render(); });
   $("b-hc-clear").addEventListener("click", () => { clearBlack(); say(""); render(); });
   $("b-reroll").addEventListener("click", startGame);

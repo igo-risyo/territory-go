@@ -1479,12 +1479,13 @@ select{font:inherit;font-size:13.5px;padding:5px 8px;border-radius:6px;border:1p
   }
   function applyRemote(fn){
     net.applying = true;
-    const prevLen = S.history.length;
+    const prevLen = S.history.length, wasScore = S.mode === "score";
     fn();
     net.last = payloadKey();
     render();
     net.applying = false;
     if (!net.watch && S.mode === "play" && S.turn === net.myColor && S.history.length > prevLen && S.last >= 0) say("netOppMoved", "good", coord(S.last));
+    if (wasScore && S.mode === "over" && S.result){ const d = Math.abs(S.result.sb - S.result.sw); say("finalSay", "good", S.winner, d); }
   }
   // 生存確認：3秒ごとに合図を送り、25秒以上届かなければ退室とみなす
   setInterval(() => {
